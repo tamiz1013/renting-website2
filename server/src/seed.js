@@ -30,9 +30,9 @@ async function seed() {
   // Create default short-term platform pricing
   const defaultPlatforms = [
     { platform: 'facebook', short_term_price: 2, long_term_7d_price: 0, long_term_1m_price: 0, long_term_3m_price: 0 },
-    { platform: 'google', short_term_price: 3, long_term_7d_price: 0, long_term_1m_price: 0, long_term_3m_price: 0 },
+
     { platform: 'craigslist', short_term_price: 1.5, long_term_7d_price: 0, long_term_1m_price: 0, long_term_3m_price: 0 },
-    { platform: 'twitter', short_term_price: 2.5, long_term_7d_price: 0, long_term_1m_price: 0, long_term_3m_price: 0 },
+    { platform: 'x', short_term_price: 2.5, long_term_7d_price: 0, long_term_1m_price: 0, long_term_3m_price: 0 },
     { platform: 'instagram', short_term_price: 2, long_term_7d_price: 0, long_term_1m_price: 0, long_term_3m_price: 0 },
   ];
 
