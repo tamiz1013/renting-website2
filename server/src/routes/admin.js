@@ -179,10 +179,10 @@ router.post('/emails/force-release', async (req, res) => {
 
 // ──── Pricing ────
 
-// GET /api/admin/pricing — Get all pricing
+// GET /api/admin/pricing — Get short-term platform pricing (excludes _long_term)
 router.get('/pricing', async (req, res) => {
   try {
-    const pricing = await Pricing.find().sort({ platform: 1 });
+    const pricing = await Pricing.find({ platform: { $ne: '_long_term' } }).sort({ platform: 1 });
     res.json({ pricing });
   } catch (err) {
     console.error('[Admin] Pricing list error:', err);
@@ -190,10 +190,13 @@ router.get('/pricing', async (req, res) => {
   }
 });
 
-// PUT /api/admin/pricing — Upsert pricing for a platform
+// PUT /api/admin/pricing — Upsert short-term price for a platform
 router.put('/pricing', validate(pricingUpdateSchema), async (req, res) => {
   try {
     const data = req.validated;
+    if (data.platform === '_long_term') {
+      return res.status(400).json({ error: 'Use /admin/pricing/long-term for long-term pricing' });
+    }
     const pricing = await Pricing.findOneAndUpdate(
       { platform: data.platform },
       { $set: data },
@@ -202,6 +205,49 @@ router.put('/pricing', validate(pricingUpdateSchema), async (req, res) => {
     res.json({ pricing });
   } catch (err) {
     console.error('[Admin] Pricing update error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/admin/pricing/long-term — Get the global time-based long-term pricing
+router.get('/pricing/long-term', async (req, res) => {
+  try {
+    const lt = await Pricing.findOne({ platform: '_long_term' });
+    res.json({ pricing: lt || null });
+  } catch (err) {
+    console.error('[Admin] LT pricing fetch error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/admin/pricing/long-term — Set the global time-based long-term pricing
+router.put('/pricing/long-term', async (req, res) => {
+  try {
+    const { long_term_7d_price, long_term_1m_price, long_term_3m_price } = req.body;
+    if (
+      long_term_7d_price == null ||
+      long_term_1m_price == null ||
+      long_term_3m_price == null
+    ) {
+      return res.status(400).json({ error: 'All three duration prices are required' });
+    }
+    const pricing = await Pricing.findOneAndUpdate(
+      { platform: '_long_term' },
+      {
+        $set: {
+          platform: '_long_term',
+          short_term_price: 0,
+          long_term_7d_price: parseFloat(long_term_7d_price),
+          long_term_1m_price: parseFloat(long_term_1m_price),
+          long_term_3m_price: parseFloat(long_term_3m_price),
+          enabled: true,
+        },
+      },
+      { new: true, upsert: true }
+    );
+    res.json({ pricing });
+  } catch (err) {
+    console.error('[Admin] LT pricing update error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

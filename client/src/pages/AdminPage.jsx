@@ -199,110 +199,159 @@ function EmailsTab() {
 // ──── Pricing Tab ────
 function PricingTab() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    platform: '', short_term_price: '', long_term_7d_price: '', long_term_1m_price: '', long_term_3m_price: '',
-  });
-  const [saving, setSaving] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  // ── Short-Term Per-Platform ──
+  const [stForm, setStForm] = useState({ platform: '', short_term_price: '' });
+  const [stSaving, setStSaving] = useState(false);
+
+  const { data: stData, isLoading: stLoading } = useQuery({
     queryKey: ['adminPricing'],
     queryFn: api.adminGetPricing,
   });
+  const stPricing = stData?.pricing || [];
 
-  const pricing = data?.pricing || [];
-
-  const handleSave = async (e) => {
+  const handleStSave = async (e) => {
     e.preventDefault();
-    setSaving(true);
+    setStSaving(true);
     try {
       await api.adminUpdatePricing({
-        platform: form.platform,
-        short_term_price: parseFloat(form.short_term_price),
-        long_term_7d_price: parseFloat(form.long_term_7d_price),
-        long_term_1m_price: parseFloat(form.long_term_1m_price),
-        long_term_3m_price: parseFloat(form.long_term_3m_price),
+        platform: stForm.platform,
+        short_term_price: parseFloat(stForm.short_term_price),
       });
-      toast.success('Pricing saved');
+      toast.success('Short-term pricing saved');
       queryClient.invalidateQueries({ queryKey: ['adminPricing'] });
-      setForm({ platform: '', short_term_price: '', long_term_7d_price: '', long_term_1m_price: '', long_term_3m_price: '' });
+      setStForm({ platform: '', short_term_price: '' });
     } catch (err) {
       toast.error(err.message);
     } finally {
-      setSaving(false);
+      setStSaving(false);
     }
   };
 
-  const loadPricing = (p) => {
-    setForm({
-      platform: p.platform,
-      short_term_price: String(p.short_term_price),
-      long_term_7d_price: String(p.long_term_7d_price),
-      long_term_1m_price: String(p.long_term_1m_price),
-      long_term_3m_price: String(p.long_term_3m_price),
+  const loadStPricing = (p) => {
+    setStForm({ platform: p.platform, short_term_price: String(p.short_term_price) });
+  };
+
+  // ── Long-Term Global ──
+  const [ltForm, setLtForm] = useState({ long_term_7d_price: '', long_term_1m_price: '', long_term_3m_price: '' });
+  const [ltSaving, setLtSaving] = useState(false);
+
+  const { data: ltData, isLoading: ltLoading } = useQuery({
+    queryKey: ['adminLtPricing'],
+    queryFn: api.adminGetLongTermPricing,
+    onSuccess: (d) => {
+      if (d?.pricing) {
+        setLtForm({
+          long_term_7d_price: String(d.pricing.long_term_7d_price ?? ''),
+          long_term_1m_price: String(d.pricing.long_term_1m_price ?? ''),
+          long_term_3m_price: String(d.pricing.long_term_3m_price ?? ''),
+        });
+      }
+    },
+  });
+
+  // Populate form when data loads (onSuccess may not fire in all RQ versions)
+  const ltPricingDoc = ltData?.pricing;
+  const [ltFormInitialized, setLtFormInitialized] = useState(false);
+  if (ltPricingDoc && !ltFormInitialized) {
+    setLtForm({
+      long_term_7d_price: String(ltPricingDoc.long_term_7d_price ?? ''),
+      long_term_1m_price: String(ltPricingDoc.long_term_1m_price ?? ''),
+      long_term_3m_price: String(ltPricingDoc.long_term_3m_price ?? ''),
     });
+    setLtFormInitialized(true);
+  }
+
+  const handleLtSave = async (e) => {
+    e.preventDefault();
+    setLtSaving(true);
+    try {
+      await api.adminUpdateLongTermPricing({
+        long_term_7d_price: parseFloat(ltForm.long_term_7d_price),
+        long_term_1m_price: parseFloat(ltForm.long_term_1m_price),
+        long_term_3m_price: parseFloat(ltForm.long_term_3m_price),
+      });
+      toast.success('Long-term pricing saved');
+      queryClient.invalidateQueries({ queryKey: ['adminLtPricing'] });
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLtSaving(false);
+    }
   };
 
   return (
     <div>
+      {/* ── Short-Term Platform Pricing ── */}
       <div className="card mb-4">
-        <h3 className="mb-3">Set Pricing</h3>
-        <form onSubmit={handleSave}>
+        <h3 className="mb-3">Short-Term Platform Pricing</h3>
+        <form onSubmit={handleStSave}>
           <div className="grid-3 mb-3">
             <div className="form-group">
               <label>Platform</label>
-              <input value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value })} placeholder="facebook" required />
+              <input value={stForm.platform} onChange={(e) => setStForm({ ...stForm, platform: e.target.value })} placeholder="facebook" required />
             </div>
             <div className="form-group">
-              <label>Short-Term Price</label>
-              <input type="number" step="0.01" value={form.short_term_price} onChange={(e) => setForm({ ...form, short_term_price: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label>7-Day Price</label>
-              <input type="number" step="0.01" value={form.long_term_7d_price} onChange={(e) => setForm({ ...form, long_term_7d_price: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label>1-Month Price</label>
-              <input type="number" step="0.01" value={form.long_term_1m_price} onChange={(e) => setForm({ ...form, long_term_1m_price: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label>3-Month Price</label>
-              <input type="number" step="0.01" value={form.long_term_3m_price} onChange={(e) => setForm({ ...form, long_term_3m_price: e.target.value })} required />
+              <label>Price (10-min rental)</label>
+              <input type="number" step="0.01" min="0" value={stForm.short_term_price} onChange={(e) => setStForm({ ...stForm, short_term_price: e.target.value })} required />
             </div>
           </div>
-          <button className="btn-primary" type="submit" disabled={saving}>
-            {saving ? 'Saving...' : 'Save Pricing'}
+          <button className="btn-primary" type="submit" disabled={stSaving}>
+            {stSaving ? 'Saving...' : 'Save'}
           </button>
         </form>
       </div>
 
-      {isLoading && <p className="text-dim">Loading...</p>}
-      <div className="table-wrap">
+      {stLoading && <p className="text-dim">Loading...</p>}
+      <div className="table-wrap mb-5">
         <table>
           <thead>
             <tr>
               <th>Platform</th>
-              <th>Short-Term</th>
-              <th>7 Days</th>
-              <th>1 Month</th>
-              <th>3 Months</th>
+              <th>Short-Term Price</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {pricing.map((p) => (
+            {stPricing.map((p) => (
               <tr key={p.platform}>
                 <td style={{ textTransform: 'capitalize' }}>{p.platform}</td>
                 <td className="font-mono">${p.short_term_price}</td>
-                <td className="font-mono">${p.long_term_7d_price}</td>
-                <td className="font-mono">${p.long_term_1m_price}</td>
-                <td className="font-mono">${p.long_term_3m_price}</td>
                 <td>
-                  <button className="btn-ghost btn-sm" onClick={() => loadPricing(p)}>Edit</button>
+                  <button className="btn-ghost btn-sm" onClick={() => loadStPricing(p)}>Edit</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Long-Term Global Pricing ── */}
+      <div className="card mb-4">
+        <h3 className="mb-3">Long-Term Pricing (Global)</h3>
+        {ltLoading ? (
+          <p className="text-dim">Loading...</p>
+        ) : (
+          <form onSubmit={handleLtSave}>
+            <div className="grid-3 mb-3">
+              <div className="form-group">
+                <label>7-Day Price</label>
+                <input type="number" step="0.01" min="0" value={ltForm.long_term_7d_price} onChange={(e) => setLtForm({ ...ltForm, long_term_7d_price: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>1-Month Price</label>
+                <input type="number" step="0.01" min="0" value={ltForm.long_term_1m_price} onChange={(e) => setLtForm({ ...ltForm, long_term_1m_price: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>3-Month Price</label>
+                <input type="number" step="0.01" min="0" value={ltForm.long_term_3m_price} onChange={(e) => setLtForm({ ...ltForm, long_term_3m_price: e.target.value })} required />
+              </div>
+            </div>
+            <button className="btn-primary" type="submit" disabled={ltSaving}>
+              {ltSaving ? 'Saving...' : 'Save Long-Term Pricing'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

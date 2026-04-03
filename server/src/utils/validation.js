@@ -71,9 +71,9 @@ export const depositActionSchema = z.object({
 export const pricingUpdateSchema = z.object({
   platform: z.string().min(1).max(50).toLowerCase(),
   short_term_price: z.number().min(0),
-  long_term_7d_price: z.number().min(0),
-  long_term_1m_price: z.number().min(0),
-  long_term_3m_price: z.number().min(0),
+  long_term_7d_price: z.number().min(0).optional(),
+  long_term_1m_price: z.number().min(0).optional(),
+  long_term_3m_price: z.number().min(0).optional(),
   enabled: z.boolean().optional(),
 });
 

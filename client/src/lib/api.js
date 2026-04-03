@@ -40,6 +40,7 @@ export const api = {
 
   // Pricing (public)
   getPricing: () => request('/pricing'),
+  getLongTermPricing: () => request('/pricing/long-term'),
 
   // Short-term
   shortTermAssign: (body) => request('/short-term/assign', { method: 'POST', body: JSON.stringify(body) }),
@@ -71,6 +72,8 @@ export const api = {
   adminForceRelease: (body) => request('/admin/emails/force-release', { method: 'POST', body: JSON.stringify(body) }),
   adminGetPricing: () => request('/admin/pricing'),
   adminUpdatePricing: (body) => request('/admin/pricing', { method: 'PUT', body: JSON.stringify(body) }),
+  adminGetLongTermPricing: () => request('/admin/pricing/long-term'),
+  adminUpdateLongTermPricing: (body) => request('/admin/pricing/long-term', { method: 'PUT', body: JSON.stringify(body) }),
   adminGetDeposits: (status = 'pending') => request(`/admin/deposits?status=${status}`),
   adminApproveDeposit: (body) => request('/admin/deposits/approve', { method: 'POST', body: JSON.stringify(body) }),
   adminRejectDeposit: (body) => request('/admin/deposits/reject', { method: 'POST', body: JSON.stringify(body) }),

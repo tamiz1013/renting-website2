@@ -22,16 +22,15 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
     const { duration } = req.validated;
     const userId = req.user._id;
 
-    // Get long-term pricing (use any enabled platform for long-term pricing)
-    const pricingDocs = await Pricing.find({ enabled: true });
-    if (pricingDocs.length === 0) {
-      return res.status(400).json({ error: 'No pricing configured' });
+    // Get time-based long-term pricing from the dedicated _long_term document
+    const ltPricing = await Pricing.findOne({ platform: '_long_term', enabled: true });
+    if (!ltPricing) {
+      return res.status(400).json({ error: 'Long-term pricing is not configured. Ask an admin to set it up.' });
     }
 
-    // Use the first pricing doc's long-term price for the duration
     const priceKey = `long_term_${duration}_price`;
-    const price = pricingDocs[0][priceKey];
-    if (price === undefined || price === null) {
+    const price = ltPricing[priceKey];
+    if (price == null) {
       return res.status(400).json({ error: `No pricing for duration "${duration}"` });
     }
 

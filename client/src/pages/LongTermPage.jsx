@@ -12,9 +12,9 @@ export default function LongTermPage() {
   const [duration, setDuration] = useState('7d');
   const [requesting, setRequesting] = useState(false);
 
-  const { data: pricingData } = useQuery({
-    queryKey: ['pricing'],
-    queryFn: api.getPricing,
+  const { data: ltPricingData } = useQuery({
+    queryKey: ['longTermPricing'],
+    queryFn: api.getLongTermPricing,
   });
 
   const { data: activeData, isLoading } = useQuery({
@@ -23,7 +23,7 @@ export default function LongTermPage() {
     refetchInterval: 10000,
   });
 
-  const pricing = pricingData?.pricing?.[0]; // Use first platform's long-term prices
+  const ltPricing = ltPricingData?.pricing;
   const rentals = activeData?.rentals || [];
 
   const durations = [
@@ -68,7 +68,7 @@ export default function LongTermPage() {
             >
               <div style={{ fontWeight: 600, fontSize: 16 }}>{d.label}</div>
               <div className="font-mono text-success mt-2" style={{ fontSize: 20 }}>
-                ${pricing?.[d.priceKey]?.toFixed(2) || '—'}
+                ${ltPricing?.[d.priceKey]?.toFixed(2) ?? '—'}
               </div>
             </button>
           ))}
