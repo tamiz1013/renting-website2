@@ -23,6 +23,16 @@ const lockEventSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const banRecordSchema = new mongoose.Schema(
+  {
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    platform: { type: String, default: null }, // null = all platforms (long-term ban)
+    lock_type: { type: String, enum: ['short_term', 'long_term'] },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const emailInventorySchema = new mongoose.Schema(
   {
     email_id: { type: String, required: true, unique: true },
@@ -42,6 +52,7 @@ const emailInventorySchema = new mongoose.Schema(
     short_term_assigned_at: { type: Date, default: null },
     short_term_expires_at: { type: Date, default: null },
     short_term_otp_received: { type: Boolean, default: false },
+    short_term_inbox_received: { type: Boolean, default: false }, // any inbox message received
 
     // Long-term state
     long_term_user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
@@ -56,6 +67,10 @@ const emailInventorySchema = new mongoose.Schema(
     lock_acquired_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     lock_token: { type: String, default: null },
 
+    // Ban tracking
+    ban_records: { type: [banRecordSchema], default: [] }, // per-user ban history
+    globally_banned: { type: Boolean, default: false }, // auto-banned after 3 distinct user bans
+
     lock_events: { type: [lockEventSchema], default: [] },
   },
   { timestamps: true }
@@ -66,6 +81,8 @@ emailInventorySchema.index({ short_term_expires_at: 1 });
 emailInventorySchema.index({ rental_expiry: 1 });
 emailInventorySchema.index({ long_term_user: 1, rental_expiry: 1 });
 emailInventorySchema.index({ lock_type: 1, lock_acquired_at: 1 });
+emailInventorySchema.index({ globally_banned: 1 });
+emailInventorySchema.index({ 'ban_records.user_id': 1 });
 
 const EmailInventory = primaryConnection.model('EmailInventory', emailInventorySchema);
 export default EmailInventory;

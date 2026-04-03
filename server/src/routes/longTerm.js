@@ -43,12 +43,30 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
     const rentalExpiry = new Date(now.getTime() + durationMs);
     const lockToken = generateLockToken();
 
-    // Atomic assignment: find an email with no active lock
+    // Get list of email_ids this user has previously banned
+    const userBannedEmails = req.user.banned_emails || [];
+
+    // Get all enabled short-term platforms to check ALL are available
+    const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
+    const platforms = pricingDocs.map((p) => p.platform);
+
+    // Build query: every platform must be available and not banned
+    const allPlatformAvailQuery = {};
+    for (const plat of platforms) {
+      allPlatformAvailQuery[`platform_status.${plat}.available`] = true;
+      allPlatformAvailQuery[`platform_status.${plat}.banned`] = { $ne: true };
+    }
+
+    // Atomic assignment: find an email with no active lock, not globally banned,
+    // not user-banned, and all platforms available
     const email = await EmailInventory.findOneAndUpdate(
       {
         lock_type: null,
         current_user: null,
         long_term_user: null,
+        globally_banned: { $ne: true },
+        ...(userBannedEmails.length > 0 ? { email_id: { $nin: userBannedEmails } } : {}),
+        ...allPlatformAvailQuery,
       },
       {
         $set: {
@@ -61,6 +79,7 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
           long_term_assigned_at: now,
           long_term_released_at: null,
           rental_expiry: rentalExpiry,
+          // NOTE: platforms remain available — they only get locked on actual OTP usage
         },
         $push: {
           lock_events: {
@@ -74,17 +93,6 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
 
     if (!email) {
       return res.status(404).json({ error: 'No available email for long-term rental' });
-    }
-
-    // Mark all platforms as unavailable while long-term lock is active
-    const platformUpdates = {};
-    if (email.platform_status) {
-      for (const [plat] of email.platform_status) {
-        platformUpdates[`platform_status.${plat}.available`] = false;
-      }
-    }
-    if (Object.keys(platformUpdates).length > 0) {
-      await EmailInventory.findByIdAndUpdate(email._id, { $set: platformUpdates });
     }
 
     // Deduct balance
@@ -139,16 +147,7 @@ router.post('/release', authenticate, validate(longTermActionSchema), async (req
       return res.status(404).json({ error: 'Long-term rental not found or not owned by you' });
     }
 
-    // Release: clear long-term fields, return platforms to available (unless banned)
-    const platformUpdates = {};
-    if (email.platform_status) {
-      for (const [plat, status] of email.platform_status) {
-        if (!status.banned) {
-          platformUpdates[`platform_status.${plat}.available`] = true;
-        }
-      }
-    }
-
+    // Release: clear long-term fields but DO NOT change platform availability
     await EmailInventory.findOneAndUpdate(
       { email_id, lock_type: 'long_term', long_term_user: userId },
       {
@@ -162,7 +161,6 @@ router.post('/release', authenticate, validate(longTermActionSchema), async (req
           long_term_assigned_at: null,
           long_term_released_at: new Date(),
           rental_expiry: null,
-          ...platformUpdates,
         },
         $push: {
           lock_events: {
@@ -207,8 +205,7 @@ router.post('/ban', authenticate, validate(longTermBanSchema), async (req, res) 
       return res.status(404).json({ error: 'Long-term rental not found or not owned by you' });
     }
 
-    // Ban: all platforms set to banned + unavailable, refund only if inbox was empty
-    // (Inbox check is done by the caller in the frontend — we trust the `inbox_empty` flag here)
+    // Ban: record per-user ban, mark all platforms banned, check for auto-global-ban
     const platformUpdates = {};
     if (email.platform_status) {
       for (const [plat] of email.platform_status) {
@@ -217,7 +214,7 @@ router.post('/ban', authenticate, validate(longTermBanSchema), async (req, res) 
       }
     }
 
-    await EmailInventory.findOneAndUpdate(
+    const banUpdate = await EmailInventory.findOneAndUpdate(
       { email_id, lock_type: 'long_term', long_term_user: userId },
       {
         $set: {
@@ -233,13 +230,30 @@ router.post('/ban', authenticate, validate(longTermBanSchema), async (req, res) 
           ...platformUpdates,
         },
         $push: {
+          ban_records: { user_id: userId, platform: null, lock_type: 'long_term', at: new Date() },
           lock_events: {
             $each: [buildLockEvent('ban', 'long_term', 'long_term', userId)],
             $slice: -50,
           },
         },
-      }
+      },
+      { new: true }
     );
+
+    // Record in user's personal banned list
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { banned_emails: email_id },
+    });
+
+    // Check if 3+ distinct users have banned this email → globally ban it
+    if (banUpdate) {
+      const distinctBanners = new Set(banUpdate.ban_records.map((r) => r.user_id.toString()));
+      if (distinctBanners.size >= 3 && !banUpdate.globally_banned) {
+        await EmailInventory.findByIdAndUpdate(banUpdate._id, {
+          $set: { globally_banned: true },
+        });
+      }
+    }
 
     await User.findByIdAndUpdate(userId, {
       $pull: { active_rentals: { email_id } },

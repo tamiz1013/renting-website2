@@ -13,6 +13,8 @@ import {
   reportSchema,
 } from '../utils/validation.js';
 import { generateLockToken, buildLockEvent } from '../utils/helpers.js';
+import RealtimeEmail from '../models/RealtimeEmail.js';
+import { matchesPlatform } from '../utils/helpers.js';
 
 const router = Router();
 
@@ -45,13 +47,20 @@ router.post('/assign', authenticate, validate(shortTermRequestSchema), async (re
     const expiresAt = new Date(now.getTime() + config.shortTermDurationMs);
     const lockToken = generateLockToken();
 
-    // Atomic assignment: find an email that is unlocked and has this platform available + not banned
+    // Get list of email_ids this user has previously banned
+    const userBannedEmails = req.user.banned_emails || [];
+
+    // Atomic assignment: find an email that is unlocked, has this platform available,
+    // not globally banned, not banned by this user, and platform not banned
     const email = await EmailInventory.findOneAndUpdate(
       {
         lock_type: null,
         current_user: null,
+        long_term_user: null,
+        globally_banned: { $ne: true },
         [`platform_status.${platform}.available`]: true,
         [`platform_status.${platform}.banned`]: { $ne: true },
+        ...(userBannedEmails.length > 0 ? { email_id: { $nin: userBannedEmails } } : {}),
       },
       {
         $set: {
@@ -65,6 +74,7 @@ router.post('/assign', authenticate, validate(shortTermRequestSchema), async (re
           short_term_assigned_at: now,
           short_term_expires_at: expiresAt,
           short_term_otp_received: false,
+          short_term_inbox_received: false,
           [`platform_status.${platform}.available`]: false,
           [`platform_status.${platform}.otp`]: [], // Clear old OTPs
         },
@@ -144,6 +154,7 @@ router.post('/complete', authenticate, validate(shortTermActionSchema), async (r
           current_platform: null,
           short_term_assigned_at: null,
           short_term_expires_at: null,
+          short_term_inbox_received: false,
         },
         $push: {
           lock_events: {
@@ -198,7 +209,23 @@ router.post('/release', authenticate, validate(shortTermActionSchema), async (re
 
     const platform = email.current_platform;
 
-    // Unused → platform returns to available
+    // Check if any inbox messages were received during this assignment
+    let inboxReceived = email.short_term_inbox_received || false;
+    if (!inboxReceived && RealtimeEmail) {
+      const sinceTime = email.short_term_assigned_at;
+      const msgCount = await RealtimeEmail.countDocuments({
+        $or: [
+          { forwardedFrom: { $regex: email_id, $options: 'i' } },
+          { emailAccount: { $regex: email_id, $options: 'i' } },
+        ],
+        ...(sinceTime ? { createdAt: { $gte: sinceTime } } : {}),
+      });
+      inboxReceived = msgCount > 0;
+    }
+
+    // If inbox received messages, platform stays unavailable; otherwise restore it
+    const platformAvailUpdate = inboxReceived ? {} : { [`platform_status.${platform}.available`]: true };
+
     await EmailInventory.findOneAndUpdate(
       { email_id, lock_token },
       {
@@ -213,23 +240,27 @@ router.post('/release', authenticate, validate(shortTermActionSchema), async (re
           short_term_assigned_at: null,
           short_term_expires_at: null,
           short_term_otp_received: false,
-          [`platform_status.${platform}.available`]: true,
+          short_term_inbox_received: false,
+          ...platformAvailUpdate,
         },
         $push: {
           lock_events: {
-            $each: [buildLockEvent('release', 'short_term', platform, userId, { refunded: true })],
+            $each: [buildLockEvent('release', 'short_term', platform, userId, { refunded: !inboxReceived, inbox_received: inboxReceived })],
             $slice: -50,
           },
         },
       }
     );
 
-    // Refund balance
-    const pricing = await Pricing.findOne({ platform });
-    const refundAmount = pricing?.short_term_price || 0;
+    // Only refund if no inbox messages were received
+    let refundAmount = 0;
+    if (!inboxReceived) {
+      const pricing = await Pricing.findOne({ platform });
+      refundAmount = pricing?.short_term_price || 0;
+    }
 
     await User.findByIdAndUpdate(userId, {
-      $inc: { balance: refundAmount },
+      ...(refundAmount > 0 ? { $inc: { balance: refundAmount } } : {}),
       $pull: { active_rentals: { email_id } },
     });
 
@@ -240,10 +271,10 @@ router.post('/release', authenticate, validate(shortTermActionSchema), async (re
       platform,
       lock_type: 'short_term',
       amount: refundAmount,
-      meta: { refunded: true },
+      meta: { refunded: !inboxReceived, inbox_received: inboxReceived },
     });
 
-    res.json({ message: 'Released and refunded', email_id, refunded: refundAmount });
+    res.json({ message: inboxReceived ? 'Released (no refund — inbox had messages)' : 'Released and refunded', email_id, refunded: refundAmount });
   } catch (err) {
     console.error('[ShortTerm] Release error:', err);
     res.status(500).json({ error: 'Server error' });
@@ -270,8 +301,8 @@ router.post('/ban', authenticate, validate(banSchema), async (req, res) => {
 
     const platform = email.current_platform;
 
-    // Ban the platform on this email
-    await EmailInventory.findOneAndUpdate(
+    // Ban the platform on this email and record per-user ban
+    const banUpdate = await EmailInventory.findOneAndUpdate(
       { email_id, lock_token },
       {
         $set: {
@@ -285,17 +316,35 @@ router.post('/ban', authenticate, validate(banSchema), async (req, res) => {
           short_term_assigned_at: null,
           short_term_expires_at: null,
           short_term_otp_received: false,
+          short_term_inbox_received: false,
           [`platform_status.${platform}.banned`]: true,
           [`platform_status.${platform}.available`]: false,
         },
         $push: {
+          ban_records: { user_id: userId, platform, lock_type: 'short_term', at: new Date() },
           lock_events: {
             $each: [buildLockEvent('ban', 'short_term', platform, userId)],
             $slice: -50,
           },
         },
-      }
+      },
+      { new: true }
     );
+
+    // Record this email in the user's personal banned list (never re-assign)
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { banned_emails: email_id },
+    });
+
+    // Check if 3+ distinct users have banned this email → globally ban it
+    if (banUpdate) {
+      const distinctBanners = new Set(banUpdate.ban_records.map((r) => r.user_id.toString()));
+      if (distinctBanners.size >= 3 && !banUpdate.globally_banned) {
+        await EmailInventory.findByIdAndUpdate(banUpdate._id, {
+          $set: { globally_banned: true },
+        });
+      }
+    }
 
     // Refund
     const pricing = await Pricing.findOne({ platform });

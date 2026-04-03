@@ -396,6 +396,105 @@ router.get('/logs', async (req, res) => {
   }
 });
 
+// ──── Ban Review Queue ────
+
+// GET /api/admin/review/banned — Get globally banned emails (auto-banned after 3 user bans)
+router.get('/review/banned', async (req, res) => {
+  try {
+    const emails = await EmailInventory.find({ globally_banned: true })
+      .select('-lock_events -app_password')
+      .sort({ updatedAt: -1 })
+      .limit(100);
+
+    res.json({ emails, total: emails.length });
+  } catch (err) {
+    console.error('[Admin] Banned review error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/admin/review/reported — Get reported emails (problem_count > 0)
+router.get('/review/reported', async (req, res) => {
+  try {
+    const emails = await EmailInventory.find({ problem_count: { $gt: 0 } })
+      .select('-lock_events -app_password')
+      .sort({ problem_count: -1 })
+      .limit(100);
+
+    res.json({ emails, total: emails.length });
+  } catch (err) {
+    console.error('[Admin] Reported review error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/admin/review/resolve — Resolve a banned/reported email (unban and return to pool)
+router.post('/review/resolve', async (req, res) => {
+  try {
+    const { email_id } = req.body;
+    if (!email_id) return res.status(400).json({ error: 'email_id required' });
+
+    const email = await EmailInventory.findOne({ email_id });
+    if (!email) return res.status(404).json({ error: 'Email not found' });
+
+    // Unban all platforms
+    const platformUpdates = {};
+    if (email.platform_status) {
+      for (const [plat] of email.platform_status) {
+        platformUpdates[`platform_status.${plat}.banned`] = false;
+        platformUpdates[`platform_status.${plat}.available`] = true;
+      }
+    }
+
+    await EmailInventory.findOneAndUpdate(
+      { email_id },
+      {
+        $set: {
+          globally_banned: false,
+          problem_count: 0,
+          ban_records: [],
+          ...platformUpdates,
+        },
+      }
+    );
+
+    await UsageLog.create({
+      user_id: req.user._id,
+      email_id,
+      action: 'admin_resolve',
+      meta: { resolved_by: req.user._id },
+    });
+
+    res.json({ message: 'Email resolved and returned to pool', email_id });
+  } catch (err) {
+    console.error('[Admin] Resolve error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/admin/review/delete — Permanently delete an email from inventory
+router.delete('/review/delete', async (req, res) => {
+  try {
+    const { email_id } = req.body;
+    if (!email_id) return res.status(400).json({ error: 'email_id required' });
+
+    const result = await EmailInventory.findOneAndDelete({ email_id });
+    if (!result) return res.status(404).json({ error: 'Email not found' });
+
+    await UsageLog.create({
+      user_id: req.user._id,
+      email_id,
+      action: 'admin_delete',
+      meta: { deleted_by: req.user._id },
+    });
+
+    res.json({ message: 'Email permanently deleted', email_id });
+  } catch (err) {
+    console.error('[Admin] Delete error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ──── Users ────
 
 // GET /api/admin/users

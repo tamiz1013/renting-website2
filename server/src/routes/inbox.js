@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import RealtimeEmail from '../models/RealtimeEmail.js';
 import EmailInventory from '../models/EmailInventory.js';
+import Pricing from '../models/Pricing.js';
 import { authenticate } from '../middleware/auth.js';
 import { validateQuery } from '../middleware/validate.js';
 import { inboxPollSchema } from '../utils/validation.js';
@@ -69,6 +70,45 @@ router.get('/poll', authenticate, validateQuery(inboxPollSchema), async (req, re
 
     const normalized = messages.map((msg) => normalizeMessage(msg, platform));
 
+    // Short-term: if any messages arrived, mark inbox_received on the email
+    if (email.lock_type === 'short_term' && normalized.length > 0 && !email.short_term_inbox_received) {
+      await EmailInventory.findByIdAndUpdate(email._id, {
+        $set: { short_term_inbox_received: true },
+      });
+    }
+
+    // Long-term: if OTP messages are found, lock the matching platform
+    if (email.lock_type === 'long_term' && normalized.length > 0) {
+      // Get all short-term platforms to match against
+      const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
+      const shortTermPlatforms = pricingDocs.map((p) => p.platform);
+
+      const platformsToLock = new Set();
+      for (const msg of rawMessages) {
+        const hasOtp = msg.otpList && msg.otpList.length > 0;
+        if (!hasOtp) continue;
+
+        const textToCheck = [msg.platform, msg.senderName, msg.subject].filter(Boolean).join(' ');
+        for (const plat of shortTermPlatforms) {
+          if (matchesPlatform(plat, textToCheck)) {
+            // Only lock if currently available
+            const platStatus = email.platform_status?.get(plat);
+            if (platStatus && platStatus.available && !platStatus.banned) {
+              platformsToLock.add(plat);
+            }
+          }
+        }
+      }
+
+      if (platformsToLock.size > 0) {
+        const lockUpdates = {};
+        for (const plat of platformsToLock) {
+          lockUpdates[`platform_status.${plat}.available`] = false;
+        }
+        await EmailInventory.findByIdAndUpdate(email._id, { $set: lockUpdates });
+      }
+    }
+
     res.json({ messages: normalized, count: normalized.length });
   } catch (err) {
     console.error('[Inbox] Poll error:', err);
@@ -118,6 +158,36 @@ router.get('/messages', authenticate, validateQuery(inboxPollSchema), async (req
     console.log(`[Inbox] /messages query for ${email_id}: found ${rawMessages.length} docs`);
 
     const normalized = rawMessages.map((msg) => normalizeMessage(msg));
+
+    // Long-term: if any OTP messages found, lock the matching short-term platform
+    if (rawMessages.length > 0) {
+      const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
+      const shortTermPlatforms = pricingDocs.map((p) => p.platform);
+
+      const platformsToLock = new Set();
+      for (const msg of rawMessages) {
+        const hasOtp = msg.otpList && msg.otpList.length > 0;
+        if (!hasOtp) continue;
+
+        const textToCheck = [msg.platform, msg.senderName, msg.subject].filter(Boolean).join(' ');
+        for (const plat of shortTermPlatforms) {
+          if (matchesPlatform(plat, textToCheck)) {
+            const platStatus = email.platform_status?.get(plat);
+            if (platStatus && platStatus.available && !platStatus.banned) {
+              platformsToLock.add(plat);
+            }
+          }
+        }
+      }
+
+      if (platformsToLock.size > 0) {
+        const lockUpdates = {};
+        for (const plat of platformsToLock) {
+          lockUpdates[`platform_status.${plat}.available`] = false;
+        }
+        await EmailInventory.findByIdAndUpdate(email._id, { $set: lockUpdates });
+      }
+    }
 
     res.json({ messages: normalized, count: normalized.length });
   } catch (err) {

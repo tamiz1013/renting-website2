@@ -83,6 +83,12 @@ export const api = {
   },
   adminGetUsers: (page = 1) => request(`/admin/users?page=${page}`),
   adminChangeRole: (body) => request('/admin/users/role', { method: 'PUT', body: JSON.stringify(body) }),
+
+  // Admin - review queue
+  adminGetBannedEmails: () => request('/admin/review/banned'),
+  adminGetReportedEmails: () => request('/admin/review/reported'),
+  adminResolveEmail: (body) => request('/admin/review/resolve', { method: 'POST', body: JSON.stringify(body) }),
+  adminDeleteEmail: (body) => request('/admin/review/delete', { method: 'DELETE', body: JSON.stringify(body) }),
 };
 
 export { ApiError };

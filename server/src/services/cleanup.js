@@ -25,9 +25,10 @@ async function cleanupExpiredShortTerm() {
 
     // Only refund if OTP was NOT received
     const otpReceived = email.short_term_otp_received;
+    const inboxReceived = email.short_term_inbox_received;
 
     const platformUpdates = {};
-    if (!otpReceived && platform) {
+    if (!otpReceived && !inboxReceived && platform) {
       // Unused → platform returns to available
       platformUpdates[`platform_status.${platform}.available`] = true;
     }
@@ -46,6 +47,7 @@ async function cleanupExpiredShortTerm() {
           short_term_assigned_at: null,
           short_term_expires_at: null,
           short_term_otp_received: false,
+          short_term_inbox_received: false,
           ...platformUpdates,
         },
         $push: {
@@ -57,8 +59,8 @@ async function cleanupExpiredShortTerm() {
       }
     );
 
-    // Refund if unused
-    if (!otpReceived && userId && platform) {
+    // Refund if unused (no OTP received and no inbox messages)
+    if (!otpReceived && !inboxReceived && userId && platform) {
       const pricing = await Pricing.findOne({ platform });
       const refundAmount = pricing?.short_term_price || 0;
 

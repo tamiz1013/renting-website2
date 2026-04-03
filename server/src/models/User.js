@@ -16,6 +16,7 @@ const userSchema = new mongoose.Schema(
         lock_type: { type: String, enum: ['short_term', 'long_term'] },
       },
     ],
+    banned_emails: { type: [String], default: [] }, // email_ids this user has banned — never re-assign
     telegram_username: { type: String, default: null, trim: true },
   },
   { timestamps: true }

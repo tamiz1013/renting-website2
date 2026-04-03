@@ -36,7 +36,7 @@ export default function InboxPage() {
   const handleRelease = async (email_id) => {
     const ok = await confirm({
       title: 'Release Email',
-      message: 'Release this long-term rental? All platforms will become available again.',
+      message: 'Release this long-term rental?',
       danger: false,
       confirmLabel: 'Release',
     });

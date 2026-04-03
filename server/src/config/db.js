@@ -1,12 +1,12 @@
 import mongoose from 'mongoose';
 import config from './index.js';
 
-// Shared connection options — short timeout so a lost internet connection
-// fails fast with a clear error instead of hanging for 30 seconds
+// Shared connection options — generous timeout so intermittent network
+// hiccups (especially on slower connections to Atlas) don't cascade errors
 const CONN_OPTS = {
-  serverSelectionTimeoutMS: 8000,
-  connectTimeoutMS: 10000,
-  socketTimeoutMS: 30000,
+  serverSelectionTimeoutMS: 15000,
+  connectTimeoutMS: 20000,
+  socketTimeoutMS: 45000,
 };
 
 // Primary DB connection (users, inventory, locks, pricing, deposits, logs)

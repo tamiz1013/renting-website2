@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import { api } from '../lib/api.js';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 
-const TABS = ['emails', 'pricing', 'deposits', 'logs', 'users'];
+const TABS = ['emails', 'pricing', 'deposits', 'logs', 'users', 'review'];
 
 export default function AdminPage() {
   const [tab, setTab] = useState('emails');
@@ -29,6 +29,7 @@ export default function AdminPage() {
       {tab === 'deposits' && <DepositsTab />}
       {tab === 'logs' && <LogsTab />}
       {tab === 'users' && <UsersTab />}
+      {tab === 'review' && <ReviewTab />}
     </div>
   );
 }
@@ -499,6 +500,132 @@ function LogsTab() {
         <button className="btn-ghost btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Prev</button>
         <span className="text-sm text-dim">Page {page} of {totalPages}</span>
         <button className="btn-ghost btn-sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
+      </div>
+    </div>
+  );
+}
+
+// ──── Review Tab (Banned & Reported Emails) ────
+function ReviewTab() {
+  const queryClient = useQueryClient();
+  const { confirm, dialog } = useConfirm();
+  const [view, setView] = useState('banned');
+
+  const { data: bannedData, isLoading: bannedLoading } = useQuery({
+    queryKey: ['adminBanned'],
+    queryFn: api.adminGetBannedEmails,
+    enabled: view === 'banned',
+  });
+
+  const { data: reportedData, isLoading: reportedLoading } = useQuery({
+    queryKey: ['adminReported'],
+    queryFn: api.adminGetReportedEmails,
+    enabled: view === 'reported',
+  });
+
+  const emails = view === 'banned' ? (bannedData?.emails || []) : (reportedData?.emails || []);
+  const loading = view === 'banned' ? bannedLoading : reportedLoading;
+
+  const handleResolve = async (email_id) => {
+    const ok = await confirm({
+      title: 'Resolve Email',
+      message: `Unban and return "${email_id}" to the pool?`,
+      confirmLabel: 'Resolve',
+    });
+    if (!ok) return;
+    try {
+      await api.adminResolveEmail({ email_id });
+      toast.success('Email resolved');
+      queryClient.invalidateQueries({ queryKey: ['adminBanned'] });
+      queryClient.invalidateQueries({ queryKey: ['adminReported'] });
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDelete = async (email_id) => {
+    const ok = await confirm({
+      title: 'Delete Email',
+      message: `Permanently delete "${email_id}" from inventory? This cannot be undone.`,
+      confirmLabel: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await api.adminDeleteEmail({ email_id });
+      toast.success('Email deleted');
+      queryClient.invalidateQueries({ queryKey: ['adminBanned'] });
+      queryClient.invalidateQueries({ queryKey: ['adminReported'] });
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  return (
+    <div>
+      {dialog}
+      <div className="flex gap-2 mb-4">
+        <button className={`btn-ghost btn-sm ${view === 'banned' ? 'btn-primary' : ''}`} onClick={() => setView('banned')}>
+          Globally Banned
+        </button>
+        <button className={`btn-ghost btn-sm ${view === 'reported' ? 'btn-primary' : ''}`} onClick={() => setView('reported')}>
+          Reported
+        </button>
+      </div>
+
+      {loading && <p className="text-dim">Loading...</p>}
+
+      {!loading && emails.length === 0 && (
+        <p className="text-dim" style={{ textAlign: 'center', padding: '2rem' }}>
+          No {view} emails to review
+        </p>
+      )}
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Email ID</th>
+              <th>Status</th>
+              <th>Platforms</th>
+              <th>{view === 'banned' ? 'Ban Count' : 'Reports'}</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {emails.map((em) => (
+              <tr key={em.email_id}>
+                <td className="font-mono text-sm">{em.email_id}</td>
+                <td>
+                  {em.globally_banned && <span className="badge badge-danger">Globally Banned</span>}
+                  {em.problem_count > 0 && !em.globally_banned && <span className="badge badge-warning">Reported</span>}
+                  {em.lock_type && <span className="badge badge-info ml-1">{em.lock_type}</span>}
+                </td>
+                <td>
+                  <div className="flex gap-1 flex-wrap">
+                    {em.platform_status && Object.entries(
+                      typeof em.platform_status.toJSON === 'function'
+                        ? em.platform_status.toJSON()
+                        : em.platform_status
+                    ).map(([plat, status]) => (
+                      <span key={plat} className={`badge ${status.banned ? 'badge-danger' : status.available ? 'badge-success' : 'badge-warning'}`}>
+                        {plat}
+                      </span>
+                    ))}
+                  </div>
+                </td>
+                <td className="font-mono">
+                  {view === 'banned' ? (em.ban_records?.length || 0) : em.problem_count}
+                </td>
+                <td>
+                  <div className="flex gap-2">
+                    <button className="btn-success btn-sm" onClick={() => handleResolve(em.email_id)}>Resolve</button>
+                    <button className="btn-danger btn-sm" onClick={() => handleDelete(em.email_id)}>Delete</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
