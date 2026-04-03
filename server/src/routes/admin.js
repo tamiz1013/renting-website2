@@ -22,7 +22,14 @@ router.use(authenticate, requireAdmin);
 // POST /api/admin/emails/bulk — Bulk add emails
 router.post('/emails/bulk', validate(bulkAddEmailsSchema), async (req, res) => {
   try {
-    const { mother_email, app_password, child_emails, platforms } = req.validated;
+    const { mother_email, app_password, child_emails } = req.validated;
+
+    // Auto-fetch all enabled platforms from Pricing (excluding _long_term)
+    const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
+    const platforms = pricingDocs.map((p) => p.platform);
+    if (platforms.length === 0) {
+      return res.status(400).json({ error: 'No platforms configured yet. Add pricing first.' });
+    }
 
     const docs = child_emails.map((childEmail) => {
       const platformStatus = {};
@@ -197,11 +204,23 @@ router.put('/pricing', validate(pricingUpdateSchema), async (req, res) => {
     if (data.platform === '_long_term') {
       return res.status(400).json({ error: 'Use /admin/pricing/long-term for long-term pricing' });
     }
+    const existing = await Pricing.findOne({ platform: data.platform });
+    const isNew = !existing;
+
     const pricing = await Pricing.findOneAndUpdate(
       { platform: data.platform },
       { $set: data },
       { new: true, upsert: true }
     );
+
+    // If this is a brand-new platform, add it to every existing email
+    if (isNew) {
+      await EmailInventory.updateMany(
+        { [`platform_status.${data.platform}`]: { $exists: false } },
+        { $set: { [`platform_status.${data.platform}`]: { available: true, banned: false, last_used: null, otp: [] } } }
+      );
+    }
+
     res.json({ pricing });
   } catch (err) {
     console.error('[Admin] Pricing update error:', err);

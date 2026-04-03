@@ -83,7 +83,6 @@ export const bulkAddEmailsSchema = z.object({
   mother_email: z.string().email(),
   app_password: z.string().min(1),
   child_emails: z.array(z.string().email()).min(1),
-  platforms: z.array(z.string().min(1)).min(1),
 });
 
 // Admin - platform toggle

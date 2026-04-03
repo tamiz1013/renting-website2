@@ -37,7 +37,7 @@ export default function AdminPage() {
 function EmailsTab() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
-  const [bulkForm, setBulkForm] = useState({ mother_email: '', app_password: '', child_emails: '', platforms: 'facebook,google,craigslist' });
+  const [bulkForm, setBulkForm] = useState({ mother_email: '', app_password: '', child_emails: '' });
   const [adding, setAdding] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -53,7 +53,6 @@ function EmailsTab() {
     setAdding(true);
     try {
       const child_emails = bulkForm.child_emails.split('\n').map((e) => e.trim()).filter(Boolean);
-      const platforms = bulkForm.platforms.split(',').map((p) => p.trim()).filter(Boolean);
 
       if (child_emails.length === 0) { toast.error('Enter at least one child email'); setAdding(false); return; }
 
@@ -61,10 +60,9 @@ function EmailsTab() {
         mother_email: bulkForm.mother_email,
         app_password: bulkForm.app_password,
         child_emails,
-        platforms,
       });
       toast.success('Emails added');
-      setBulkForm({ mother_email: '', app_password: '', child_emails: '', platforms: 'facebook,google,craigslist' });
+      setBulkForm({ mother_email: '', app_password: '', child_emails: '' });
       queryClient.invalidateQueries({ queryKey: ['adminEmails'] });
     } catch (err) {
       toast.error(err.message);
@@ -107,10 +105,6 @@ function EmailsTab() {
             <div className="form-group">
               <label>App Password</label>
               <input value={bulkForm.app_password} onChange={(e) => setBulkForm({ ...bulkForm, app_password: e.target.value })} placeholder="xxxx-xxxx-xxxx-xxxx" required />
-            </div>
-            <div className="form-group">
-              <label>Platforms (comma-separated)</label>
-              <input value={bulkForm.platforms} onChange={(e) => setBulkForm({ ...bulkForm, platforms: e.target.value })} />
             </div>
           </div>
           <div className="form-group">
