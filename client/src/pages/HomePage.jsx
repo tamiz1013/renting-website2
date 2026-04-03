@@ -63,7 +63,7 @@ export default function HomePage() {
               onClick={() => setSelectedPlatform(p.platform)}
             >
               <div className="flex items-center justify-between">
-                <span style={{ textTransform: 'capitalize', fontWeight: 600 }}>{p.platform}</span>
+                <span style={{ textTransform: 'capitalize', fontWeight: 600, color: 'var(--text)' }}>{p.platform}</span>
                 <span className="font-mono text-success">${p.short_term_price}</span>
               </div>
               <div className="text-xs text-dim mt-2">10 minutes • OTP delivery</div>
