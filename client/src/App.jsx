@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage.jsx';
 import LongTermPage from './pages/LongTermPage.jsx';
 import InboxPage from './pages/InboxPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import DepositPage from './pages/DepositPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 
 function ProtectedRoute({ children, adminOnly }) {
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="long-term" element={<LongTermPage />} />
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="deposit" element={<DepositPage />} />
         <Route
           path="admin/*"
           element={

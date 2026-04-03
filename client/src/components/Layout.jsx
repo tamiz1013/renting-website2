@@ -1,8 +1,9 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <div className="app-layout">
@@ -34,10 +35,17 @@ export default function Layout() {
         </nav>
         <div className="sidebar-footer">
           <div className="text-sm text-dim mb-2">{user?.name}</div>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-mono">${user?.balance?.toFixed(2)}</span>
             <button className="btn-ghost btn-sm" onClick={logout}>Logout</button>
           </div>
+          <button
+            className="btn-primary btn-sm"
+            style={{ width: '100%' }}
+            onClick={() => navigate('/deposit')}
+          >
+            + Deposit
+          </button>
         </div>
       </aside>
       <main className="main-content">

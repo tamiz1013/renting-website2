@@ -60,6 +60,7 @@ export const longTermReportSchema = z.object({
 // Deposits
 export const depositRequestSchema = z.object({
   amount: z.number().positive(),
+  transaction_id: z.string().min(1).max(200),
 });
 
 export const depositActionSchema = z.object({

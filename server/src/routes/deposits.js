@@ -10,12 +10,13 @@ const router = Router();
 // POST /api/deposits — Create a deposit request
 router.post('/', authenticate, validate(depositRequestSchema), async (req, res) => {
   try {
-    const { amount } = req.validated;
+    const { amount, transaction_id } = req.validated;
     const userId = req.user._id;
 
     const deposit = await DepositRequest.create({
       user_id: userId,
       amount,
+      transaction_id,
     });
 
     await UsageLog.create({

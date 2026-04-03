@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -8,15 +7,6 @@ export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const [changingPw, setChangingPw] = useState(false);
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '' });
-  const [depositAmount, setDepositAmount] = useState('');
-  const [depositing, setDepositing] = useState(false);
-
-  const { data: depositsData } = useQuery({
-    queryKey: ['deposits'],
-    queryFn: api.getDeposits,
-  });
-
-  const deposits = depositsData?.deposits || [];
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -29,22 +19,6 @@ export default function ProfilePage() {
       toast.error(err.message);
     } finally {
       setChangingPw(false);
-    }
-  };
-
-  const handleDeposit = async (e) => {
-    e.preventDefault();
-    const amount = parseFloat(depositAmount);
-    if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
-    setDepositing(true);
-    try {
-      await api.createDeposit({ amount });
-      toast.success('Deposit request submitted');
-      setDepositAmount('');
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setDepositing(false);
     }
   };
 
@@ -137,58 +111,6 @@ export default function ProfilePage() {
               {changingPw ? 'Updating...' : 'Update Password'}
             </button>
           </form>
-        </div>
-
-        {/* Deposit */}
-        <div className="card">
-          <h3 className="mb-3">Request Deposit</h3>
-          <form onSubmit={handleDeposit}>
-            <div className="form-group">
-              <label>Amount ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="10.00"
-                required
-              />
-            </div>
-            <button className="btn-primary" type="submit" disabled={depositing}>
-              {depositing ? 'Submitting...' : 'Submit Request'}
-            </button>
-          </form>
-
-          {deposits.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm mb-2">Recent Deposits</h4>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Amount</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deposits.slice(0, 10).map((d) => (
-                      <tr key={d._id}>
-                        <td className="font-mono">${d.amount.toFixed(2)}</td>
-                        <td>
-                          <span className={`badge ${d.status === 'approved' ? 'badge-success' : d.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
-                            {d.status}
-                          </span>
-                        </td>
-                        <td className="text-dim">{new Date(d.createdAt).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

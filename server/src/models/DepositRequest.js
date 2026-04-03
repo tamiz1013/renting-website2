@@ -5,6 +5,7 @@ const depositRequestSchema = new mongoose.Schema(
   {
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     amount: { type: Number, required: true, min: 0 },
+    transaction_id: { type: String, default: null },
     status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
     admin_note: { type: String, default: null },
     processed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

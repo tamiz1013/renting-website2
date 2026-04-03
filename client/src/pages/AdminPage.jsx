@@ -401,6 +401,7 @@ function DepositsTab() {
             <tr>
               <th>User</th>
               <th>Amount</th>
+              <th>Tx ID</th>
               <th>Status</th>
               <th>Date</th>
               <th>Actions</th>
@@ -411,6 +412,7 @@ function DepositsTab() {
               <tr key={d._id}>
                 <td>{d.user_id?.name || 'Unknown'} <span className="text-dim text-xs">({d.user_id?.email})</span></td>
                 <td className="font-mono">${d.amount.toFixed(2)}</td>
+                <td className="font-mono text-xs" style={{ maxWidth: 160, wordBreak: 'break-all' }}>{d.transaction_id || '—'}</td>
                 <td>
                   <span className={`badge ${d.status === 'approved' ? 'badge-success' : d.status === 'rejected' ? 'badge-danger' : 'badge-warning'}`}>
                     {d.status}
@@ -428,7 +430,7 @@ function DepositsTab() {
               </tr>
             ))}
             {deposits.length === 0 && !isLoading && (
-              <tr><td colSpan={5} className="text-dim" style={{ textAlign: 'center' }}>No {status} deposits</td></tr>
+              <tr><td colSpan={6} className="text-dim" style={{ textAlign: 'center' }}>No {status} deposits</td></tr>
             )}
           </tbody>
         </table>
