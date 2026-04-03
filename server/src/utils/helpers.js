@@ -19,7 +19,8 @@ export function buildLockEvent(action, type, platform, userId, meta = {}) {
 // Platform regex patterns for matching incoming emails
 const PLATFORM_PATTERNS = {
   facebook: /facebook|fb|meta/i,
-  craigslist: /craigslist/i,
+  craigslist: /craigslist|craiglist/i,
+  craiglist: /craigslist|craiglist/i,
   x: /twitter|x\.com|\bx\b/i,
   instagram: /instagram|ig/i,
   tiktok: /tiktok/i,

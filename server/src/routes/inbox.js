@@ -31,16 +31,16 @@ router.get('/poll', authenticate, validateQuery(inboxPollSchema), async (req, re
       return res.status(503).json({ error: 'Realtime inbox not configured' });
     }
 
-    // Determine time boundary — only show messages after assignment started
-    const sinceTime = email.lock_type === 'short_term'
-      ? email.short_term_assigned_at
-      : email.long_term_assigned_at;
-
     const platform = email.lock_type === 'short_term'
       ? email.current_platform
       : null; // long-term sees all messages
 
-    // Query the realtime collection
+    // Use createdAt (DB insertion time) instead of emailTime (original send time)
+    // to avoid clock skew and string-vs-Date mismatches
+    const sinceTime = email.lock_type === 'short_term'
+      ? email.short_term_assigned_at
+      : email.long_term_assigned_at;
+
     const query = {
       $or: [
         { forwardedFrom: { $regex: email_id, $options: 'i' } },
@@ -49,7 +49,7 @@ router.get('/poll', authenticate, validateQuery(inboxPollSchema), async (req, re
     };
 
     if (sinceTime) {
-      query.emailTime = { $gte: sinceTime };
+      query.createdAt = { $gte: sinceTime };
     }
 
     const rawMessages = await RealtimeEmail.find(query)
