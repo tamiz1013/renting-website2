@@ -20,7 +20,7 @@ export function buildLockEvent(action, type, platform, userId, meta = {}) {
 const PLATFORM_PATTERNS = {
   facebook: /facebook|fb|meta/i,
   craigslist: /craigslist/i,
-  x: /twitter|x\.com/i,
+  x: /twitter|x\.com|\bx\b/i,
   instagram: /instagram|ig/i,
   tiktok: /tiktok/i,
   snapchat: /snapchat/i,
@@ -43,7 +43,7 @@ export function matchesPlatform(platform, text) {
 // Normalize a realtime email doc into a consistent message shape
 export function normalizeMessage(doc, platform) {
   const otpEntry = doc.otpList?.[0];
-  const code = otpEntry?.code || otpEntry?.otp || null;
+  const code = typeof otpEntry === 'string' ? otpEntry : (otpEntry?.code || otpEntry?.otp || null);
   const hasCode = !!code;
   const body = doc.body || otpEntry?.body || otpEntry?.text || '';
 
