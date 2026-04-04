@@ -120,7 +120,7 @@ export default function AssignmentCard({ assignment }) {
             Ban
           </button>
         )}
-        <button className="btn-ghost btn-sm" onClick={() => setShowReport(!showReport)} disabled={busy}>
+        <button className="btn-ghost btn-sm" onClick={() => setShowReport(!showReport)} disabled={busy || messages.length === 0}>
           Report
         </button>
       </div>

@@ -132,16 +132,11 @@ router.post('/emails/force-release', async (req, res) => {
     const email = await EmailInventory.findOne({ email_id });
     if (!email) return res.status(404).json({ error: 'Email not found' });
 
-    // Restore platforms to available (unless banned)
-    const platformUpdates = {};
-    if (email.platform_status) {
-      for (const [plat, status] of email.platform_status) {
-        if (!status.banned) {
-          platformUpdates[`platform_status.${plat}.available`] = true;
-        }
-      }
+    if (email.lock_type !== 'long_term') {
+      return res.status(400).json({ error: 'Force release is only available for long-term rentals' });
     }
 
+    // Release lock fields without changing platform availability
     await EmailInventory.findOneAndUpdate(
       { email_id },
       {
@@ -151,26 +146,15 @@ router.post('/emails/force-release', async (req, res) => {
           lock_acquired_at: null,
           lock_acquired_by: null,
           lock_token: null,
-          current_user: null,
-          current_platform: null,
-          short_term_assigned_at: null,
-          short_term_expires_at: null,
-          short_term_otp_received: false,
           long_term_user: null,
           long_term_assigned_at: null,
           long_term_released_at: new Date(),
           rental_expiry: null,
-          ...platformUpdates,
         },
       }
     );
 
-    // Remove from any user's active_rentals
-    if (email.current_user) {
-      await User.findByIdAndUpdate(email.current_user, {
-        $pull: { active_rentals: { email_id } },
-      });
-    }
+    // Remove from user's active_rentals
     if (email.long_term_user) {
       await User.findByIdAndUpdate(email.long_term_user, {
         $pull: { active_rentals: { email_id } },
@@ -518,6 +502,10 @@ router.post('/review/refund', async (req, res) => {
 
     const email = await EmailInventory.findOne({ email_id });
     if (!email) return res.status(404).json({ error: 'Email not found' });
+
+    if (email.globally_banned) {
+      return res.status(400).json({ error: 'Cannot refund a globally banned email' });
+    }
 
     let refundedUser = null;
     let refundAmount = 0;

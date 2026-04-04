@@ -388,6 +388,10 @@ router.post('/report', authenticate, validate(reportSchema), async (req, res) =>
       return res.status(404).json({ error: 'Assignment not found or not owned by you' });
     }
 
+    if (!email.short_term_inbox_received) {
+      return res.status(400).json({ error: 'Cannot report before receiving any email' });
+    }
+
     await EmailInventory.findByIdAndUpdate(email._id, {
       $inc: { problem_count: 1 },
       $push: {

@@ -46,6 +46,14 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
     // Get list of email_ids this user has previously banned
     const userBannedEmails = req.user.banned_emails || [];
 
+    // Get email_ids this user has previously rented long-term (no re-assignment)
+    const previousLongTermLogs = await UsageLog.find(
+      { user_id: userId, action: 'long_term_assign' },
+      { email_id: 1 }
+    ).lean();
+    const previousLongTermIds = previousLongTermLogs.map((l) => l.email_id);
+    const excludedEmailIds = [...new Set([...userBannedEmails, ...previousLongTermIds])];
+
     // Get all enabled short-term platforms to check ALL are available
     const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
     const platforms = pricingDocs.map((p) => p.platform);
@@ -65,7 +73,7 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
         current_user: null,
         long_term_user: null,
         globally_banned: { $ne: true },
-        ...(userBannedEmails.length > 0 ? { email_id: { $nin: userBannedEmails } } : {}),
+        ...(excludedEmailIds.length > 0 ? { email_id: { $nin: excludedEmailIds } } : {}),
         ...allPlatformAvailQuery,
       },
       {

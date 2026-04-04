@@ -169,7 +169,7 @@ function EmailsTab() {
                   </div>
                 </td>
                 <td>
-                  {em.lock_type && (
+                  {em.lock_type === 'long_term' && (
                     <button className="btn-danger btn-sm" onClick={() => handleForceRelease(em.email_id)}>
                       Force Release
                     </button>
@@ -637,9 +637,11 @@ function ReviewTab() {
                 </td>
                 <td>
                   <div className="flex gap-2">
-                    <button className="btn-warning btn-sm" onClick={() => handleRefund(em.email_id)} disabled={refundedIds.has(em.email_id)}>
-                      {refundedIds.has(em.email_id) ? 'Refunded' : 'Refund'}
-                    </button>
+                    {!em.globally_banned && (
+                      <button className="btn-warning btn-sm" onClick={() => handleRefund(em.email_id)} disabled={refundedIds.has(em.email_id)}>
+                        {refundedIds.has(em.email_id) ? 'Refunded' : 'Refund'}
+                      </button>
+                    )}
                     <button className="btn-success btn-sm" onClick={() => handleResolve(em.email_id)}>Resolve</button>
                     <button className="btn-danger btn-sm" onClick={() => handleDelete(em.email_id)}>Delete</button>
                   </div>
