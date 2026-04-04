@@ -438,12 +438,11 @@ router.post('/review/resolve', async (req, res) => {
     const email = await EmailInventory.findOne({ email_id });
     if (!email) return res.status(404).json({ error: 'Email not found' });
 
-    // Unban all platforms
+    // Unban platforms but keep availability as-is
     const platformUpdates = {};
     if (email.platform_status) {
       for (const [plat] of email.platform_status) {
         platformUpdates[`platform_status.${plat}.banned`] = false;
-        platformUpdates[`platform_status.${plat}.available`] = true;
       }
     }
 
@@ -454,6 +453,7 @@ router.post('/review/resolve', async (req, res) => {
           globally_banned: false,
           problem_count: 0,
           ban_records: [],
+          reports: [],
           ...platformUpdates,
         },
       }
@@ -473,7 +473,7 @@ router.post('/review/resolve', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/review/delete — Permanently delete an email from inventory (refund active user)
+// DELETE /api/admin/review/delete — Permanently delete an email from inventory (no refund)
 router.delete('/review/delete', async (req, res) => {
   try {
     const { email_id } = req.body;
@@ -482,39 +482,16 @@ router.delete('/review/delete', async (req, res) => {
     const email = await EmailInventory.findOne({ email_id });
     if (!email) return res.status(404).json({ error: 'Email not found' });
 
-    // Refund the active user if there's an active rental
-    let refundedUser = null;
-    let refundAmount = 0;
-
-    if (email.lock_type === 'short_term' && email.current_user && email.current_platform) {
-      const pricing = await Pricing.findOne({ platform: email.current_platform });
-      refundAmount = pricing?.short_term_price || 0;
-      if (refundAmount > 0) {
-        await User.findByIdAndUpdate(email.current_user, {
-          $inc: { balance: refundAmount },
-          $pull: { active_rentals: { email_id } },
-        });
-        refundedUser = email.current_user;
-      }
-    } else if (email.lock_type === 'long_term' && email.long_term_user) {
-      // For long-term, find the original price from the usage log
-      const assignLog = await UsageLog.findOne({
-        email_id,
-        user_id: email.long_term_user,
-        action: 'long_term_assign',
-      }).sort({ createdAt: -1 });
-      refundAmount = assignLog?.amount || 0;
-      if (refundAmount > 0) {
-        await User.findByIdAndUpdate(email.long_term_user, {
-          $inc: { balance: refundAmount },
-          $pull: { active_rentals: { email_id } },
-        });
-        refundedUser = email.long_term_user;
-      } else {
-        await User.findByIdAndUpdate(email.long_term_user, {
-          $pull: { active_rentals: { email_id } },
-        });
-      }
+    // Clean up active_rentals on the user (no refund)
+    if (email.current_user) {
+      await User.findByIdAndUpdate(email.current_user, {
+        $pull: { active_rentals: { email_id } },
+      });
+    }
+    if (email.long_term_user) {
+      await User.findByIdAndUpdate(email.long_term_user, {
+        $pull: { active_rentals: { email_id } },
+      });
     }
 
     await EmailInventory.findOneAndDelete({ email_id });
@@ -523,13 +500,82 @@ router.delete('/review/delete', async (req, res) => {
       user_id: req.user._id,
       email_id,
       action: 'admin_delete',
-      amount: refundAmount,
-      meta: { deleted_by: req.user._id, refunded_user: refundedUser, refund_amount: refundAmount },
+      meta: { deleted_by: req.user._id },
     });
 
-    res.json({ message: 'Email permanently deleted' + (refundAmount > 0 ? ` (refunded $${refundAmount})` : ''), email_id, refunded: refundAmount });
+    res.json({ message: 'Email permanently deleted', email_id });
   } catch (err) {
     console.error('[Admin] Delete error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/admin/review/refund — Refund the active user on an email
+router.post('/review/refund', async (req, res) => {
+  try {
+    const { email_id } = req.body;
+    if (!email_id) return res.status(400).json({ error: 'email_id required' });
+
+    const email = await EmailInventory.findOne({ email_id });
+    if (!email) return res.status(404).json({ error: 'Email not found' });
+
+    let refundedUser = null;
+    let refundAmount = 0;
+
+    if (email.lock_type === 'short_term' && email.current_user && email.current_platform) {
+      const pricing = await Pricing.findOne({ platform: email.current_platform });
+      refundAmount = pricing?.short_term_price || 0;
+      refundedUser = email.current_user;
+    } else if (email.lock_type === 'long_term' && email.long_term_user) {
+      const assignLog = await UsageLog.findOne({
+        email_id,
+        user_id: email.long_term_user,
+        action: 'long_term_assign',
+      }).sort({ createdAt: -1 });
+      refundAmount = assignLog?.amount || 0;
+      refundedUser = email.long_term_user;
+    }
+
+    if (!refundedUser || refundAmount <= 0) {
+      return res.status(400).json({ error: 'No active rental to refund or amount is zero' });
+    }
+
+    await User.findByIdAndUpdate(refundedUser, {
+      $inc: { balance: refundAmount },
+      $pull: { active_rentals: { email_id } },
+    });
+
+    // Release the email lock so user loses access
+    const releaseUpdate = {
+      lock_type: null,
+      lock_platform: null,
+      lock_acquired_at: null,
+      lock_acquired_by: null,
+      lock_token: null,
+      current_user: null,
+      current_platform: null,
+      short_term_assigned_at: null,
+      short_term_expires_at: null,
+      short_term_otp_received: false,
+      short_term_inbox_received: false,
+      long_term_user: null,
+      long_term_assigned_at: null,
+      long_term_released_at: new Date(),
+      rental_expiry: null,
+    };
+    await EmailInventory.findOneAndUpdate({ email_id }, { $set: releaseUpdate });
+
+    await UsageLog.create({
+      user_id: req.user._id,
+      email_id,
+      action: 'admin_refund',
+      amount: refundAmount,
+      meta: { refunded_user: refundedUser, refund_amount: refundAmount },
+    });
+
+    res.json({ message: `Refunded $${refundAmount}`, email_id, refunded: refundAmount });
+  } catch (err) {
+    console.error('[Admin] Refund error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

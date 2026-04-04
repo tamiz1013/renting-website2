@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -7,6 +7,15 @@ export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const [changingPw, setChangingPw] = useState(false);
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '' });
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+
+  useEffect(() => {
+    api.getMyReports()
+      .then((data) => setReports(data.reports || []))
+      .catch(() => {})
+      .finally(() => setLoadingReports(false));
+  }, []);
 
   const handleChangePassword = async (e) => {
     e.preventDefault();
@@ -112,6 +121,63 @@ export default function ProfilePage() {
             </button>
           </form>
         </div>
+      </div>
+
+      {/* My Reports */}
+      <div className="card mb-4">
+        <h3 className="mb-3">My Reports</h3>
+        {loadingReports ? (
+          <div className="text-dim text-sm">Loading...</div>
+        ) : reports.length === 0 ? (
+          <div className="text-dim text-sm">No reports submitted yet.</div>
+        ) : (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Type</th>
+                  <th>Platform</th>
+                  <th>Comment</th>
+                  <th>Reported</th>
+                  <th>Refunded</th>
+                  <th>Resolved</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((r, i) => (
+                  <tr key={i}>
+                    <td className="font-mono text-xs">{r.email_id}</td>
+                    <td>
+                      <span className={`badge ${r.lock_type === 'short_term' ? 'badge-info' : 'badge-warning'}`}>
+                        {r.lock_type === 'short_term' ? 'Short' : 'Long'}
+                      </span>
+                    </td>
+                    <td>{r.platform || '—'}</td>
+                    <td className="text-sm">{r.comment || '—'}</td>
+                    <td className="text-xs text-dim">{new Date(r.reported_at).toLocaleDateString()}</td>
+                    <td>
+                      {r.refunded ? (
+                        <span className="badge badge-success">Refunded ${r.refund_amount}</span>
+                      ) : (
+                        <span className="badge badge-danger">Not Refunded</span>
+                      )}
+                    </td>
+                    <td>
+                      {r.deleted ? (
+                        <span className="badge badge-warning">Deleted</span>
+                      ) : r.resolved ? (
+                        <span className="badge badge-success">Resolved</span>
+                      ) : (
+                        <span className="badge badge-danger">Pending</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

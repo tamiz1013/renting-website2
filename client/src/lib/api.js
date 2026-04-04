@@ -36,6 +36,7 @@ export const api = {
   signup: (body) => request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   getMe: () => request('/auth/me'),
+  getMyReports: () => request('/auth/my-reports'),
   changePassword: (body) => request('/auth/password', { method: 'PUT', body: JSON.stringify(body) }),
 
   // Pricing (public)
@@ -88,6 +89,7 @@ export const api = {
   adminGetBannedEmails: () => request('/admin/review/banned'),
   adminGetReportedEmails: () => request('/admin/review/reported'),
   adminResolveEmail: (body) => request('/admin/review/resolve', { method: 'POST', body: JSON.stringify(body) }),
+  adminRefundEmail: (body) => request('/admin/review/refund', { method: 'POST', body: JSON.stringify(body) }),
   adminDeleteEmail: (body) => request('/admin/review/delete', { method: 'DELETE', body: JSON.stringify(body) }),
 };
 

@@ -36,7 +36,7 @@ export default function InboxPage() {
   const handleRelease = async (email_id) => {
     const ok = await confirm({
       title: 'Release Email',
-      message: 'Release this long-term rental?',
+      message: 'Release this long-term rental? This will be deleted from your account and become available for others to rent. No refund will be given. wait for the refund if you reported any problem before releasing.',
       danger: false,
       confirmLabel: 'Release',
     });

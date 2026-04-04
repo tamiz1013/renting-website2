@@ -525,11 +525,12 @@ function ReviewTab() {
 
   const emails = view === 'banned' ? (bannedData?.emails || []) : (reportedData?.emails || []);
   const loading = view === 'banned' ? bannedLoading : reportedLoading;
+  const [refundedIds, setRefundedIds] = useState(new Set());
 
   const handleResolve = async (email_id) => {
     const ok = await confirm({
       title: 'Resolve Email',
-      message: `Unban and return "${email_id}" to the pool?`,
+      message: `Return "${email_id}" to the pool?`,
       confirmLabel: 'Resolve',
     });
     if (!ok) return;
@@ -546,13 +547,31 @@ function ReviewTab() {
   const handleDelete = async (email_id) => {
     const ok = await confirm({
       title: 'Delete Email',
-      message: `Permanently delete "${email_id}" from inventory? This cannot be undone.`,
+      message: `Permanently delete "${email_id}" from inventory? No refund will be given. This cannot be undone.`,
       confirmLabel: 'Delete',
     });
     if (!ok) return;
     try {
       await api.adminDeleteEmail({ email_id });
       toast.success('Email deleted');
+      queryClient.invalidateQueries({ queryKey: ['adminBanned'] });
+      queryClient.invalidateQueries({ queryKey: ['adminReported'] });
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleRefund = async (email_id) => {
+    const ok = await confirm({
+      title: 'Refund User',
+      message: `Refund the active user on "${email_id}"?`,
+      confirmLabel: 'Refund',
+    });
+    if (!ok) return;
+    try {
+      const res = await api.adminRefundEmail({ email_id });
+      toast.success(res.message || 'Refunded');
+      setRefundedIds((prev) => new Set(prev).add(email_id));
       queryClient.invalidateQueries({ queryKey: ['adminBanned'] });
       queryClient.invalidateQueries({ queryKey: ['adminReported'] });
     } catch (err) {
@@ -618,6 +637,9 @@ function ReviewTab() {
                 </td>
                 <td>
                   <div className="flex gap-2">
+                    <button className="btn-warning btn-sm" onClick={() => handleRefund(em.email_id)} disabled={refundedIds.has(em.email_id)}>
+                      {refundedIds.has(em.email_id) ? 'Refunded' : 'Refund'}
+                    </button>
                     <button className="btn-success btn-sm" onClick={() => handleResolve(em.email_id)}>Resolve</button>
                     <button className="btn-danger btn-sm" onClick={() => handleDelete(em.email_id)}>Delete</button>
                   </div>
