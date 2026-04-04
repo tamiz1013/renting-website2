@@ -7,6 +7,7 @@ const config = {
   realtimeMongodbUri: process.env.REALTIME_MONGODB_URI,
   jwtSecret: process.env.JWT_SECRET || 'fallback-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
   shortTermDurationMs: 30 * 60 * 1000, // 30 minutes
   maxActiveShortTerm: 3,
   cleanupIntervalMs: 30 * 1000, // check every 30s

@@ -18,6 +18,9 @@ const userSchema = new mongoose.Schema(
     ],
     banned_emails: { type: [String], default: [] }, // email_ids this user has banned — never re-assign
     telegram_username: { type: String, default: null, trim: true },
+    telegramChatId: { type: String, unique: true, sparse: true, default: null },
+    telegramLinkCode: { type: String, default: null },
+    telegramLinkCodeExpiry: { type: Date, default: null },
   },
   { timestamps: true }
 );

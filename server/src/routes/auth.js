@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import config from '../config/index.js';
 import User from '../models/User.js';
 import EmailInventory from '../models/EmailInventory.js';
@@ -42,6 +43,7 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
         role: user.role,
         balance: user.balance,
         telegram_username: user.telegram_username,
+        telegramLinked: !!user.telegramChatId,
       },
     });
   } catch (err) {
@@ -78,6 +80,7 @@ router.post('/login', validate(loginSchema), async (req, res) => {
         role: user.role,
         balance: user.balance,
         telegram_username: user.telegram_username,
+        telegramLinked: !!user.telegramChatId,
       },
     });
   } catch (err) {
@@ -88,7 +91,12 @@ router.post('/login', validate(loginSchema), async (req, res) => {
 
 // GET /api/auth/me
 router.get('/me', authenticate, async (req, res) => {
-  res.json({ user: req.user });
+  const userObj = req.user.toObject ? req.user.toObject() : { ...req.user };
+  userObj.telegramLinked = !!userObj.telegramChatId;
+  delete userObj.telegramChatId;
+  delete userObj.telegramLinkCode;
+  delete userObj.telegramLinkCodeExpiry;
+  res.json({ user: userObj });
 });
 
 // PUT /api/auth/password
@@ -108,6 +116,44 @@ router.put('/password', authenticate, validate(changePasswordSchema), async (req
     res.json({ message: 'Password updated' });
   } catch (err) {
     console.error('[Auth] Password change error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/telegram-link — Generate a one-time link code for Telegram
+router.post('/telegram-link', authenticate, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (user.telegramChatId) {
+      return res.status(400).json({ error: 'Telegram is already linked to this account' });
+    }
+
+    // Generate a 6-char alphanumeric code
+    const code = crypto.randomBytes(3).toString('hex').toUpperCase();
+    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    user.telegramLinkCode = code;
+    user.telegramLinkCodeExpiry = expiry;
+    await user.save();
+
+    res.json({ code, expires_at: expiry });
+  } catch (err) {
+    console.error('[Auth] Telegram link code error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/auth/telegram-link — Unlink Telegram from account
+router.delete('/telegram-link', authenticate, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      $set: { telegramChatId: null, telegramLinkCode: null, telegramLinkCodeExpiry: null },
+    });
+
+    res.json({ message: 'Telegram unlinked' });
+  } catch (err) {
+    console.error('[Auth] Telegram unlink error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

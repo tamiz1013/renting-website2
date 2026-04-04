@@ -20,6 +20,7 @@ import depositRoutes from './routes/deposits.js';
 import pricingRoutes from './routes/pricing.js';
 import adminRoutes from './routes/admin.js';
 import { startCleanupWorker } from './services/cleanup.js';
+import { initBot } from './telegram/bot.js';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use((err, req, res, _next) => {
 app.listen(config.port, () => {
   console.log(`[Server] Running on port ${config.port}`);
   startCleanupWorker();
+  initBot();
 });
 
 export default app;

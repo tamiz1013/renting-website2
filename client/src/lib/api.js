@@ -38,6 +38,8 @@ export const api = {
   getMe: () => request('/auth/me'),
   getMyReports: () => request('/auth/my-reports'),
   changePassword: (body) => request('/auth/password', { method: 'PUT', body: JSON.stringify(body) }),
+  generateTelegramLink: () => request('/auth/telegram-link', { method: 'POST' }),
+  unlinkTelegram: () => request('/auth/telegram-link', { method: 'DELETE' }),
 
   // Pricing (public)
   getPricing: () => request('/pricing'),

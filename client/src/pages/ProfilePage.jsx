@@ -9,6 +9,9 @@ export default function ProfilePage() {
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '' });
   const [reports, setReports] = useState([]);
   const [loadingReports, setLoadingReports] = useState(true);
+  const [linkCode, setLinkCode] = useState(null);
+  const [linkExpiry, setLinkExpiry] = useState(null);
+  const [linkLoading, setLinkLoading] = useState(false);
 
   useEffect(() => {
     api.getMyReports()
@@ -33,6 +36,31 @@ export default function ProfilePage() {
 
   const activeShortTerm = user?.active_rentals?.filter((r) => r.lock_type === 'short_term').length || 0;
   const activeLongTerm = user?.active_rentals?.filter((r) => r.lock_type === 'long_term').length || 0;
+
+  const handleGenerateLink = async () => {
+    setLinkLoading(true);
+    try {
+      const data = await api.generateTelegramLink();
+      setLinkCode(data.code);
+      setLinkExpiry(data.expires_at);
+      toast.success('Link code generated!');
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setLinkLoading(false);
+    }
+  };
+
+  const handleUnlinkTelegram = async () => {
+    if (!window.confirm('Unlink Telegram from your account?')) return;
+    try {
+      await api.unlinkTelegram();
+      toast.success('Telegram unlinked');
+      refreshUser();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
 
   return (
     <div>
@@ -120,6 +148,51 @@ export default function ProfilePage() {
               {changingPw ? 'Updating...' : 'Update Password'}
             </button>
           </form>
+        </div>
+
+        {/* Telegram Link */}
+        <div className="card">
+          <h3 className="mb-3">🤖 Telegram</h3>
+          {user?.telegramLinked ? (
+            <div>
+              <div className="form-group">
+                <span className="badge badge-success">✅ Connected</span>
+              </div>
+              <p className="text-sm text-dim mb-3">
+                Your Telegram account is linked. You can use the bot to access all services.
+              </p>
+              <button className="btn-danger" onClick={handleUnlinkTelegram}>
+                Unlink Telegram
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-dim mb-3">
+                Link your Telegram to use the bot and access all services from Telegram.
+              </p>
+              {linkCode ? (
+                <div>
+                  <div className="form-group">
+                    <label>Your Link Code</label>
+                    <div className="font-mono" style={{ fontSize: 24, letterSpacing: 4, color: 'var(--primary)', fontWeight: 700 }}>
+                      {linkCode}
+                    </div>
+                  </div>
+                  <p className="text-sm text-dim mb-3">
+                    Open the bot on Telegram and send:<br />
+                    <code>/link {linkCode}</code>
+                  </p>
+                  <p className="text-xs text-dim">
+                    Code expires at {new Date(linkExpiry).toLocaleTimeString()}
+                  </p>
+                </div>
+              ) : (
+                <button className="btn-primary" onClick={handleGenerateLink} disabled={linkLoading}>
+                  {linkLoading ? 'Generating...' : '🔗 Link Telegram'}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
