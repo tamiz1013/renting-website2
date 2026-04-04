@@ -16,13 +16,32 @@ router.get('/poll', authenticate, validateQuery(inboxPollSchema), async (req, re
     const userId = req.user._id;
 
     // Verify the caller owns this assignment
-    const email = await EmailInventory.findOne({
+    let email = await EmailInventory.findOne({
       email_id,
       $or: [
         { lock_type: 'short_term', current_user: userId },
         { lock_type: 'long_term', long_term_user: userId },
       ],
     });
+
+    // Fallback: if email was deleted from inventory, check user's active_rentals
+    let isFallback = false;
+    if (!email) {
+      const now = new Date();
+      const activeRental = (req.user.active_rentals || []).find(
+        (r) => r.email_id === email_id && r.expires_at > now
+      );
+      if (activeRental) {
+        isFallback = true;
+        email = {
+          email_id,
+          lock_type: activeRental.lock_type,
+          current_platform: activeRental.lock_type === 'short_term' ? activeRental.platform : null,
+          short_term_assigned_at: null,
+          long_term_assigned_at: null,
+        };
+      }
+    }
 
     if (!email) {
       return res.status(403).json({ error: 'You do not have access to this email' });
@@ -71,14 +90,14 @@ router.get('/poll', authenticate, validateQuery(inboxPollSchema), async (req, re
     const normalized = messages.map((msg) => normalizeMessage(msg, platform));
 
     // Short-term: if any messages arrived, mark inbox_received on the email
-    if (email.lock_type === 'short_term' && normalized.length > 0 && !email.short_term_inbox_received) {
+    if (!isFallback && email.lock_type === 'short_term' && normalized.length > 0 && !email.short_term_inbox_received) {
       await EmailInventory.findByIdAndUpdate(email._id, {
         $set: { short_term_inbox_received: true },
       });
     }
 
-    // Long-term: if OTP messages are found, lock the matching platform
-    if (email.lock_type === 'long_term' && normalized.length > 0) {
+    // Long-term: if OTP messages are found, lock the matching platform (skip if fallback)
+    if (!isFallback && email.lock_type === 'long_term' && normalized.length > 0) {
       // Get all short-term platforms to match against
       const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
       const shortTermPlatforms = pricingDocs.map((p) => p.platform);
@@ -122,11 +141,24 @@ router.get('/messages', authenticate, validateQuery(inboxPollSchema), async (req
     const { email_id } = req.validatedQuery;
     const userId = req.user._id;
 
-    const email = await EmailInventory.findOne({
+    let email = await EmailInventory.findOne({
       email_id,
       lock_type: 'long_term',
       long_term_user: userId,
     });
+
+    // Fallback: if email was deleted from inventory, check user's active_rentals
+    let isFallback = false;
+    if (!email) {
+      const now = new Date();
+      const activeRental = (req.user.active_rentals || []).find(
+        (r) => r.email_id === email_id && r.lock_type === 'long_term' && r.expires_at > now
+      );
+      if (activeRental) {
+        isFallback = true;
+        email = { email_id, lock_type: 'long_term' };
+      }
+    }
 
     if (!email) {
       return res.status(403).json({ error: 'You do not have access to this email' });
@@ -159,8 +191,8 @@ router.get('/messages', authenticate, validateQuery(inboxPollSchema), async (req
 
     const normalized = rawMessages.map((msg) => normalizeMessage(msg));
 
-    // Long-term: if any OTP messages found, lock the matching short-term platform
-    if (rawMessages.length > 0) {
+    // Long-term: if any OTP messages found, lock the matching short-term platform (skip if fallback)
+    if (!isFallback && rawMessages.length > 0) {
       const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
       const shortTermPlatforms = pricingDocs.map((p) => p.platform);
 

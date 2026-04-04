@@ -334,7 +334,21 @@ router.get('/active', authenticate, async (req, res) => {
       long_term_user: userId,
     }).select('-app_password -lock_events');
 
-    res.json({ rentals: emails });
+    // Fallback: include rentals from user.active_rentals that are still valid
+    // but no longer exist in EmailInventory (e.g. email was deleted from inventory)
+    const inventoryIds = new Set(emails.map((e) => e.email_id));
+    const now = new Date();
+    const userRentals = (req.user.active_rentals || [])
+      .filter((r) => r.lock_type === 'long_term' && r.expires_at > now && !inventoryIds.has(r.email_id));
+
+    const fallbackRentals = userRentals.map((r) => ({
+      email_id: r.email_id,
+      rental_expiry: r.expires_at,
+      lock_type: 'long_term',
+      _fallback: true, // indicates email was removed from inventory
+    }));
+
+    res.json({ rentals: [...emails, ...fallbackRentals] });
   } catch (err) {
     console.error('[LongTerm] Active list error:', err);
     res.status(500).json({ error: 'Server error' });
