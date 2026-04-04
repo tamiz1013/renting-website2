@@ -56,29 +56,6 @@ export default function InboxPage() {
     }
   };
 
-  const handleBan = async (email_id) => {
-    const ok = await confirm({
-      title: 'Ban Email',
-      message: 'Ban all platforms on this email? This should only be done if the inbox is empty.',
-      danger: true,
-      confirmLabel: 'Ban',
-    });
-    if (!ok) return;
-
-    setBusy(true);
-    try {
-      await api.longTermBan({ email_id });
-      toast.success('Banned');
-      queryClient.invalidateQueries({ queryKey: ['longTermActive'] });
-      refreshUser();
-      if (selectedEmail === email_id) setSelectedEmail(null);
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const handleReport = async (email_id) => {
     if (!reportComment.trim()) { toast.error('Enter a comment'); return; }
     setBusy(true);
@@ -124,9 +101,6 @@ export default function InboxPage() {
               <div className="flex gap-2 mt-2">
                 <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRelease(r.email_id); }} disabled={busy}>
                   Release
-                </button>
-                <button className="btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleBan(r.email_id); }} disabled={busy}>
-                  Ban
                 </button>
                 <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setShowReport(showReport === r.email_id ? null : r.email_id); }}>
                   Report

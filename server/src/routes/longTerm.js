@@ -291,6 +291,15 @@ router.post('/report', authenticate, validate(longTermReportSchema), async (req,
 
     await EmailInventory.findByIdAndUpdate(email._id, {
       $inc: { problem_count: 1 },
+      $push: {
+        reports: {
+          user_id: userId,
+          comment,
+          lock_type: 'long_term',
+          platform: null,
+          at: new Date(),
+        },
+      },
     });
 
     await UsageLog.create({

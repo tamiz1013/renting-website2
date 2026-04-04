@@ -418,6 +418,7 @@ router.get('/review/reported', async (req, res) => {
   try {
     const emails = await EmailInventory.find({ problem_count: { $gt: 0 } })
       .select('-lock_events -app_password')
+      .populate('reports.user_id', 'name email')
       .sort({ problem_count: -1 })
       .limit(100);
 
@@ -472,23 +473,61 @@ router.post('/review/resolve', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/review/delete — Permanently delete an email from inventory
+// DELETE /api/admin/review/delete — Permanently delete an email from inventory (refund active user)
 router.delete('/review/delete', async (req, res) => {
   try {
     const { email_id } = req.body;
     if (!email_id) return res.status(400).json({ error: 'email_id required' });
 
-    const result = await EmailInventory.findOneAndDelete({ email_id });
-    if (!result) return res.status(404).json({ error: 'Email not found' });
+    const email = await EmailInventory.findOne({ email_id });
+    if (!email) return res.status(404).json({ error: 'Email not found' });
+
+    // Refund the active user if there's an active rental
+    let refundedUser = null;
+    let refundAmount = 0;
+
+    if (email.lock_type === 'short_term' && email.current_user && email.current_platform) {
+      const pricing = await Pricing.findOne({ platform: email.current_platform });
+      refundAmount = pricing?.short_term_price || 0;
+      if (refundAmount > 0) {
+        await User.findByIdAndUpdate(email.current_user, {
+          $inc: { balance: refundAmount },
+          $pull: { active_rentals: { email_id } },
+        });
+        refundedUser = email.current_user;
+      }
+    } else if (email.lock_type === 'long_term' && email.long_term_user) {
+      // For long-term, find the original price from the usage log
+      const assignLog = await UsageLog.findOne({
+        email_id,
+        user_id: email.long_term_user,
+        action: 'long_term_assign',
+      }).sort({ createdAt: -1 });
+      refundAmount = assignLog?.amount || 0;
+      if (refundAmount > 0) {
+        await User.findByIdAndUpdate(email.long_term_user, {
+          $inc: { balance: refundAmount },
+          $pull: { active_rentals: { email_id } },
+        });
+        refundedUser = email.long_term_user;
+      } else {
+        await User.findByIdAndUpdate(email.long_term_user, {
+          $pull: { active_rentals: { email_id } },
+        });
+      }
+    }
+
+    await EmailInventory.findOneAndDelete({ email_id });
 
     await UsageLog.create({
       user_id: req.user._id,
       email_id,
       action: 'admin_delete',
-      meta: { deleted_by: req.user._id },
+      amount: refundAmount,
+      meta: { deleted_by: req.user._id, refunded_user: refundedUser, refund_amount: refundAmount },
     });
 
-    res.json({ message: 'Email permanently deleted', email_id });
+    res.json({ message: 'Email permanently deleted' + (refundAmount > 0 ? ` (refunded $${refundAmount})` : ''), email_id, refunded: refundAmount });
   } catch (err) {
     console.error('[Admin] Delete error:', err);
     res.status(500).json({ error: 'Server error' });

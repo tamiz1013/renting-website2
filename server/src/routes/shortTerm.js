@@ -390,6 +390,15 @@ router.post('/report', authenticate, validate(reportSchema), async (req, res) =>
 
     await EmailInventory.findByIdAndUpdate(email._id, {
       $inc: { problem_count: 1 },
+      $push: {
+        reports: {
+          user_id: userId,
+          comment,
+          lock_type: 'short_term',
+          platform: email.current_platform,
+          at: new Date(),
+        },
+      },
     });
 
     await UsageLog.create({

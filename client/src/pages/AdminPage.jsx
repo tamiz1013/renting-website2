@@ -627,6 +627,32 @@ function ReviewTab() {
           </tbody>
         </table>
       </div>
+
+      {/* Report details for reported view */}
+      {view === 'reported' && emails.filter((em) => em.reports?.length > 0).length > 0 && (
+        <div className="mt-4">
+          <h3 className="mb-3">Report Details</h3>
+          {emails.filter((em) => em.reports?.length > 0).map((em) => (
+            <div key={em.email_id} className="card mb-3">
+              <div className="font-mono text-sm mb-2" style={{ fontWeight: 600 }}>{em.email_id}</div>
+              {em.reports.map((r, i) => (
+                <div key={i} className="mb-2" style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)' }}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="badge badge-info">{r.user_id?.name || 'Unknown'}</span>
+                    <span className="text-xs text-dim">{r.user_id?.email || ''}</span>
+                    <span className="text-xs text-dim" style={{ marginLeft: 'auto' }}>
+                      {r.at ? new Date(r.at).toLocaleString() : ''}
+                    </span>
+                  </div>
+                  {r.lock_type && <span className="badge badge-warning text-xs mr-2">{r.lock_type}</span>}
+                  {r.platform && <span className="badge badge-ghost text-xs">{r.platform}</span>}
+                  <div className="text-sm mt-1" style={{ whiteSpace: 'pre-wrap' }}>{r.comment || 'No comment'}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

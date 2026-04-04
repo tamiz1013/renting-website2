@@ -33,6 +33,17 @@ const banRecordSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const reportRecordSchema = new mongoose.Schema(
+  {
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    comment: { type: String, default: '' },
+    lock_type: { type: String, enum: ['short_term', 'long_term'] },
+    platform: { type: String, default: null },
+    at: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const emailInventorySchema = new mongoose.Schema(
   {
     email_id: { type: String, required: true, unique: true },
@@ -70,6 +81,9 @@ const emailInventorySchema = new mongoose.Schema(
     // Ban tracking
     ban_records: { type: [banRecordSchema], default: [] }, // per-user ban history
     globally_banned: { type: Boolean, default: false }, // auto-banned after 3 distinct user bans
+
+    // Report tracking
+    reports: { type: [reportRecordSchema], default: [] }, // per-user report history with comments
 
     lock_events: { type: [lockEventSchema], default: [] },
   },

@@ -14,6 +14,7 @@ const usageLogSchema = new mongoose.Schema(
         'deposit_request', 'deposit_approved', 'deposit_rejected',
         'balance_deduct', 'balance_refund',
         'report',
+        'admin_resolve', 'admin_delete',
       ],
       required: true,
     },
