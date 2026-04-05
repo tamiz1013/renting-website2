@@ -9,6 +9,7 @@ import {
   userRoleSchema,
 } from '../utils/validation.js';
 import EmailInventory from '../models/EmailInventory.js';
+import MotherEmail from '../models/MotherEmail.js';
 import User from '../models/User.js';
 import UsageLog from '../models/UsageLog.js';
 import DepositRequest from '../models/DepositRequest.js';
@@ -23,6 +24,13 @@ router.use(authenticate, requireAdmin);
 router.post('/emails/bulk', validate(bulkAddEmailsSchema), async (req, res) => {
   try {
     const { mother_email, app_password, child_emails } = req.validated;
+
+    // Upsert mother email: create if new, update app_password if changed
+    await MotherEmail.findOneAndUpdate(
+      { email: mother_email },
+      { $set: { email: mother_email, app_password } },
+      { upsert: true }
+    );
 
     // Auto-fetch all enabled platforms from Pricing (excluding _long_term)
     const pricingDocs = await Pricing.find({ platform: { $ne: '_long_term' }, enabled: { $ne: false } }).lean();
@@ -52,6 +60,16 @@ router.post('/emails/bulk', validate(bulkAddEmailsSchema), async (req, res) => {
       }
       throw err;
     });
+
+    // Sync app_password on all existing child emails under this mother email
+    await EmailInventory.updateMany(
+      { mother_email, app_password: { $ne: app_password } },
+      { $set: { app_password } }
+    );
+
+    // Update child email count on the mother email
+    const childCount = await EmailInventory.countDocuments({ mother_email });
+    await MotherEmail.updateOne({ email: mother_email }, { $set: { child_email_count: childCount } });
 
     const insertedCount = result.insertedCount ?? result.length ?? docs.length;
     res.json({ message: `Added ${insertedCount} emails`, insertedCount });
