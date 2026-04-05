@@ -21,6 +21,7 @@ import pricingRoutes from './routes/pricing.js';
 import adminRoutes from './routes/admin.js';
 import transferRoutes from './routes/transfer.js';
 import { startCleanupWorker, stopCleanupWorker } from './services/cleanup.js';
+import { startTelegramNotifier, stopTelegramNotifier } from './services/telegramNotifier.js';
 import { initBot, bot } from './telegram/bot.js';
 
 const app = express();
@@ -56,12 +57,14 @@ const server = app.listen(config.port, () => {
   console.log(`[Server] Running on port ${config.port}`);
   startCleanupWorker();
   initBot();
+  startTelegramNotifier();
 });
 
 // Graceful shutdown for --watch restarts
 function shutdown() {
   if (bot) bot.stop();
   stopCleanupWorker();
+  stopTelegramNotifier();
   server.close();
   process.exit(0);
 }
