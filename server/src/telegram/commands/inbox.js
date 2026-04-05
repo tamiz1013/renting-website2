@@ -7,6 +7,20 @@ import User from '../../models/User.js';
 
 const MESSAGES_PER_PAGE = 3;
 
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function stripUrls(text) {
+  if (!text) return '';
+  // Remove URLs (http/https links and bare [url] patterns)
+  return text
+    .replace(/\[?https?:\/\/[^\s\]]+\]?/gi, '')
+    .replace(/\n{3,}/g, '\n\n')  // collapse excessive newlines
+    .trim();
+}
+
 export function setupInboxCommands(bot) {
   // /inbox — Show active rentals to check inbox
   bot.command('inbox', async (ctx) => {
@@ -184,17 +198,17 @@ async function pollInbox(ctx, emailId, page = 1) {
 
   for (const msg of pageMessages) {
     if (msg.hasCode) {
-      text += `🔑 OTP: ${msg.code}\n`;
+      text += `🔑 OTP: <code>${escHtml(msg.code)}</code>\n`;
     }
-    if (msg.subject) text += `📝 ${msg.subject}\n`;
-    if (msg.senderName) text += `👤 ${msg.senderName}\n`;
+    if (msg.subject) text += `📝 ${escHtml(msg.subject)}\n`;
+    if (msg.senderName) text += `👤 ${escHtml(msg.senderName)}\n`;
     if (msg.time) {
       const timeStr = new Date(msg.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       text += `🕐 ${timeStr}\n`;
     }
-    if (msg.body && !msg.hasCode) {
-      const bodyPreview = msg.body.length > 150 ? msg.body.substring(0, 150) + '...' : msg.body;
-      text += `${bodyPreview}\n`;
+    if (msg.body) {
+      const bodyPreview = msg.body.length > 500 ? msg.body.substring(0, 500) + '...' : msg.body;
+      text += `\n📄 ${escHtml(bodyPreview)}\n`;
     }
     text += '\n———————————\n\n';
   }
@@ -206,6 +220,7 @@ async function pollInbox(ctx, emailId, page = 1) {
   if (page < totalPages) navButtons.push({ text: 'Next ➡️', callback_data: `${refreshAction}:${emailId}:p${page + 1}` });
 
   return safeEdit(ctx, text, {
+    parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [navButtons],
     },
@@ -256,28 +271,29 @@ async function getMessages(ctx, emailId, page = 1) {
     );
   }
 
-  const totalPages = Math.ceil(normalized.length / MESSAGES_PER_PAGE);
+  // 1 message per page for long-term to show full body
+  const perPage = 1;
+  const totalPages = Math.ceil(normalized.length / perPage);
   if (page > totalPages) page = totalPages;
   if (page < 1) page = 1;
-  const start = (page - 1) * MESSAGES_PER_PAGE;
-  const pageMessages = normalized.slice(start, start + MESSAGES_PER_PAGE);
+  const msg = normalized[page - 1];
 
   let text = `📥 Inbox for ${emailId} (${normalized.length} messages)\n`;
-  text += `Page ${page} of ${totalPages}\n\n`;
+  text += `Message ${page} of ${totalPages}\n\n`;
 
-  for (const msg of pageMessages) {
-    if (msg.hasCode) text += `🔑 OTP: ${msg.code}\n`;
-    if (msg.subject) text += `📝 ${msg.subject}\n`;
-    if (msg.senderName) text += `👤 ${msg.senderName}\n`;
-    if (msg.time) {
-      const timeStr = new Date(msg.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      text += `🕐 ${timeStr}\n`;
-    }
-    if (msg.body && !msg.hasCode) {
-      const bodyPreview = msg.body.length > 150 ? msg.body.substring(0, 150) + '...' : msg.body;
-      text += `${bodyPreview}\n`;
-    }
-    text += '\n———————————\n\n';
+  if (msg.hasCode) text += `🔑 OTP: <code>${escHtml(msg.code)}</code>\n`;
+  if (msg.subject) text += `📝 ${escHtml(msg.subject)}\n`;
+  if (msg.senderName) text += `👤 ${escHtml(msg.senderName)}\n`;
+  if (msg.time) {
+    const timeStr = new Date(msg.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    text += `🕐 ${timeStr}\n`;
+  }
+  if (msg.body) {
+    const cleanBody = stripUrls(msg.body);
+    // Telegram message limit is 4096 chars; leave room for header/buttons
+    const maxBodyLen = 4096 - text.length - 100;
+    const bodyText = cleanBody.length > maxBodyLen ? cleanBody.substring(0, maxBodyLen) + '...' : cleanBody;
+    text += `\n📄 ${escHtml(bodyText)}\n`;
   }
 
   const navButtons = [];
@@ -286,6 +302,7 @@ async function getMessages(ctx, emailId, page = 1) {
   if (page < totalPages) navButtons.push({ text: 'Next ➡️', callback_data: `messages:${emailId}:p${page + 1}` });
 
   return safeEdit(ctx, text, {
+    parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [navButtons],
     },
