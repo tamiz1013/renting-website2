@@ -6,32 +6,59 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useConfirm } from '../components/ConfirmDialog.jsx';
 import { CopyButton } from '../components/CopyButton.jsx';
 
+const MESSAGES_PER_PAGE = 3;
+
 export default function InboxPage() {
   const { refreshUser } = useAuth();
   const queryClient = useQueryClient();
   const { confirm, dialog } = useConfirm();
   const [selectedEmail, setSelectedEmail] = useState(null);
+  const [selectedType, setSelectedType] = useState(null);
   const [busy, setBusy] = useState(false);
   const [reportComment, setReportComment] = useState('');
   const [showReport, setShowReport] = useState(null);
+  const [page, setPage] = useState(1);
 
-  const { data: rentalsData, isLoading } = useQuery({
+  const { data: rentalsData, isLoading: loadingLong } = useQuery({
     queryKey: ['longTermActive'],
     queryFn: api.longTermActive,
     refetchInterval: 10000,
   });
 
-  const rentals = rentalsData?.rentals || [];
+  const { data: shortData, isLoading: loadingShort } = useQuery({
+    queryKey: ['shortTermActive'],
+    queryFn: api.shortTermActive,
+    refetchInterval: 10000,
+  });
 
-  // Fetch messages for selected email
+  const longRentals = (rentalsData?.rentals || []).map((r) => ({ ...r, type: 'long-term' }));
+  const shortRentals = (shortData?.assignments || []).map((a) => ({ ...a, type: 'short-term' }));
+  const allEmails = [...longRentals, ...shortRentals];
+  const isLoading = loadingLong || loadingShort;
+
+  // Fetch messages for selected email (use correct API based on type)
   const { data: messagesData, isLoading: loadingMessages } = useQuery({
-    queryKey: ['inbox-messages', selectedEmail],
-    queryFn: () => api.getMessages(selectedEmail),
+    queryKey: ['inbox-messages', selectedEmail, selectedType],
+    queryFn: () =>
+      selectedType === 'short-term'
+        ? api.pollInbox(selectedEmail)
+        : api.getMessages(selectedEmail),
     refetchInterval: 10000,
     enabled: !!selectedEmail,
   });
 
   const messages = messagesData?.messages || [];
+  const totalPages = Math.ceil(messages.length / MESSAGES_PER_PAGE);
+  const paginatedMessages = messages.slice(
+    (page - 1) * MESSAGES_PER_PAGE,
+    page * MESSAGES_PER_PAGE
+  );
+
+  const handleSelectEmail = (email_id, type) => {
+    setSelectedEmail(email_id);
+    setSelectedType(type);
+    setPage(1);
+  };
 
   const handleRelease = async (email_id) => {
     const ok = await confirm({
@@ -77,48 +104,62 @@ export default function InboxPage() {
       <h1 className="page-title">Inbox</h1>
 
       {isLoading && <p className="text-dim">Loading...</p>}
-      {rentals.length === 0 && !isLoading && (
-        <p className="text-dim">No long-term rentals. Go to Long-Term Rent to get one.</p>
+      {allEmails.length === 0 && !isLoading && (
+        <p className="text-dim">No active rentals. Rent an email first.</p>
       )}
 
       <div className="flex gap-4" style={{ alignItems: 'flex-start' }}>
         {/* Email list */}
-        <div style={{ width: 280, flexShrink: 0 }}>
-          {rentals.map((r) => (
+        <div style={{ width: 320, flexShrink: 0 }}>
+          {allEmails.map((r) => (
             <div
-              key={r.email_id}
+              key={`${r.type}-${r.email_id}`}
               className="card mb-2"
               style={{
                 cursor: 'pointer',
                 border: selectedEmail === r.email_id ? '2px solid var(--primary)' : undefined,
               }}
-              onClick={() => setSelectedEmail(r.email_id)}
+              onClick={() => handleSelectEmail(r.email_id, r.type)}
             >
-              <div className="font-mono text-sm">{r.email_id}</div>
+              <div className="text-sm" style={{ fontWeight: 600 }}>
+                <span style={{
+                  color: r.type === 'long-term' ? 'var(--primary)' : 'var(--success)',
+                  marginRight: 6,
+                }}>
+                  {r.type}:
+                </span>
+                <span className="font-mono">{r.email_id}</span>
+              </div>
               <div className="text-xs text-dim mt-2">
-                Expires: {new Date(r.rental_expiry).toLocaleDateString()}
+                {r.type === 'long-term'
+                  ? `Expires: ${new Date(r.rental_expiry).toLocaleDateString()}`
+                  : `Expires: ${r.short_term_expires_at ? new Date(r.short_term_expires_at).toLocaleString() : '—'}`}
               </div>
-              <div className="flex gap-2 mt-2">
-                <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRelease(r.email_id); }} disabled={busy}>
-                  Release
-                </button>
-                <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setShowReport(showReport === r.email_id ? null : r.email_id); }}>
-                  Report
-                </button>
-              </div>
-              {showReport === r.email_id && (
-                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                  <textarea
-                    rows={2}
-                    value={reportComment}
-                    onChange={(e) => setReportComment(e.target.value)}
-                    placeholder="Describe the issue..."
-                    style={{ marginBottom: 8 }}
-                  />
-                  <button className="btn-warning btn-sm" onClick={() => handleReport(r.email_id)} disabled={busy}>
-                    Submit
-                  </button>
-                </div>
+              {r.type === 'long-term' && (
+                <>
+                  <div className="flex gap-2 mt-2">
+                    <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRelease(r.email_id); }} disabled={busy}>
+                      Release
+                    </button>
+                    <button className="btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setShowReport(showReport === r.email_id ? null : r.email_id); }}>
+                      Report
+                    </button>
+                  </div>
+                  {showReport === r.email_id && (
+                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                      <textarea
+                        rows={2}
+                        value={reportComment}
+                        onChange={(e) => setReportComment(e.target.value)}
+                        placeholder="Describe the issue..."
+                        style={{ marginBottom: 8 }}
+                      />
+                      <button className="btn-warning btn-sm" onClick={() => handleReport(r.email_id)} disabled={busy}>
+                        Submit
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ))}
@@ -133,8 +174,8 @@ export default function InboxPage() {
           {selectedEmail && !loadingMessages && messages.length === 0 && (
             <p className="text-dim">No messages yet</p>
           )}
-          {messages.map((msg, i) => (
-            <div key={i} className="message-item">
+          {paginatedMessages.map((msg, i) => (
+            <div key={i} className="message-item" style={{ marginBottom: 16 }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-mono">{msg.senderName || 'Unknown sender'}</span>
                 <span className="text-xs text-dim">
@@ -155,6 +196,29 @@ export default function InboxPage() {
               )}
             </div>
           ))}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2" style={{ marginTop: 16, justifyContent: 'center' }}>
+              <button
+                className="btn-ghost btn-sm"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ← Prev
+              </button>
+              <span className="text-sm text-dim">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                className="btn-ghost btn-sm"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

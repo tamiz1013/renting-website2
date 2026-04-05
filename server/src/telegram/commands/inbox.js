@@ -5,6 +5,8 @@ import { matchesPlatform, normalizeMessage } from '../../utils/helpers.js';
 import { requireAuth } from '../middleware/auth.js';
 import User from '../../models/User.js';
 
+const MESSAGES_PER_PAGE = 3;
+
 export function setupInboxCommands(bot) {
   // /inbox — Show active rentals to check inbox
   bot.command('inbox', async (ctx) => {
@@ -19,8 +21,8 @@ export function setupInboxCommands(bot) {
     }
 
     const buttons = activeRentals.map((r) => {
-      const type = r.lock_type === 'short_term' ? '📧' : '📬';
-      const label = `${type} ${r.email_id}`;
+      const type = r.lock_type === 'short_term' ? 'short-term' : 'long-term';
+      const label = `${type}: ${r.email_id}`;
       const action = r.lock_type === 'short_term' ? 'poll' : 'messages';
       return [{ text: label, callback_data: `${action}:${r.email_id}` }];
     });
@@ -31,18 +33,20 @@ export function setupInboxCommands(bot) {
     );
   });
 
-  // Handle short-term inbox poll
-  bot.action(/^poll:(.+)$/, async (ctx) => {
+  // Handle short-term inbox poll (with optional page)
+  bot.action(/^poll:(.+?)(?::p(\d+))?$/, async (ctx) => {
     await ctx.answerCbQuery('Checking inbox...');
     if (!requireAuth(ctx)) return;
-    await pollInbox(ctx, ctx.match[1]);
+    const page = parseInt(ctx.match[2] || '1', 10);
+    await pollInbox(ctx, ctx.match[1], page);
   });
 
-  // Handle long-term inbox messages
-  bot.action(/^messages:(.+)$/, async (ctx) => {
+  // Handle long-term inbox messages (with optional page)
+  bot.action(/^messages:(.+?)(?::p(\d+))?$/, async (ctx) => {
     await ctx.answerCbQuery('Loading messages...');
     if (!requireAuth(ctx)) return;
-    await getMessages(ctx, ctx.match[1]);
+    const page = parseInt(ctx.match[2] || '1', 10);
+    await getMessages(ctx, ctx.match[1], page);
   });
 
   // /rentals — View all active rentals with actions
@@ -71,9 +75,9 @@ export function setupInboxCommands(bot) {
       text += '*Short\\-Term:*\n';
       for (const e of shortTermEmails) {
         const remaining = Math.max(0, Math.round((e.short_term_expires_at - now) / 60000));
-        text += `📧 ${esc(e.email_id)}\n   Platform: ${esc(e.current_platform)} \\| ⏱ ${remaining}m left\n\n`;
+        text += `short\\-term: ${esc(e.email_id)}\n   Platform: ${esc(e.current_platform)} \\| ⏱ ${remaining}m left\n\n`;
         buttons.push([
-          { text: `📥 Inbox: ${e.email_id}`, callback_data: `poll:${e.email_id}` },
+          { text: `Inbox: ${e.email_id}`, callback_data: `poll:${e.email_id}` },
         ]);
         buttons.push([
           { text: '↩️ Release', callback_data: `st_release:${e.email_id}` },
@@ -89,9 +93,9 @@ export function setupInboxCommands(bot) {
         const expiryStr = e.rental_expiry
           ? e.rental_expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
           : 'N/A';
-        text += `📬 ${esc(e.email_id)}\n   Expires: ${esc(expiryStr)}\n\n`;
+        text += `long\\-term: ${esc(e.email_id)}\n   Expires: ${esc(expiryStr)}\n\n`;
         buttons.push([
-          { text: `📥 Inbox: ${e.email_id}`, callback_data: `messages:${e.email_id}` },
+          { text: `Inbox: ${e.email_id}`, callback_data: `messages:${e.email_id}` },
         ]);
         buttons.push([
           { text: '↩️ Release', callback_data: `lt_release:${e.email_id}` },
@@ -107,7 +111,7 @@ export function setupInboxCommands(bot) {
   });
 }
 
-async function pollInbox(ctx, emailId) {
+async function pollInbox(ctx, emailId, page = 1) {
   const userId = ctx.dbUser._id;
 
   let email = await EmailInventory.findOne({
@@ -168,10 +172,17 @@ async function pollInbox(ctx, emailId) {
     );
   }
 
-  // Format messages
-  let text = `📥 Inbox for ${emailId} (${normalized.length} messages):\n\n`;
+  // Paginate messages
+  const totalPages = Math.ceil(normalized.length / MESSAGES_PER_PAGE);
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  const start = (page - 1) * MESSAGES_PER_PAGE;
+  const pageMessages = normalized.slice(start, start + MESSAGES_PER_PAGE);
 
-  for (const msg of normalized.slice(0, 10)) {
+  let text = `📥 Inbox for ${emailId} (${normalized.length} messages)\n`;
+  text += `Page ${page} of ${totalPages}\n\n`;
+
+  for (const msg of pageMessages) {
     if (msg.hasCode) {
       text += `🔑 OTP: ${msg.code}\n`;
     }
@@ -182,28 +193,26 @@ async function pollInbox(ctx, emailId) {
       text += `🕐 ${timeStr}\n`;
     }
     if (msg.body && !msg.hasCode) {
-      // Show truncated body
       const bodyPreview = msg.body.length > 150 ? msg.body.substring(0, 150) + '...' : msg.body;
       text += `${bodyPreview}\n`;
     }
-    text += '\n';
-  }
-
-  if (normalized.length > 10) {
-    text += `...and ${normalized.length - 10} more messages.\n`;
+    text += '\n———————————\n\n';
   }
 
   const refreshAction = email.lock_type === 'short_term' ? 'poll' : 'messages';
+  const navButtons = [];
+  if (page > 1) navButtons.push({ text: '⬅️ Prev', callback_data: `${refreshAction}:${emailId}:p${page - 1}` });
+  navButtons.push({ text: '🔄 Refresh', callback_data: `${refreshAction}:${emailId}:p${page}` });
+  if (page < totalPages) navButtons.push({ text: 'Next ➡️', callback_data: `${refreshAction}:${emailId}:p${page + 1}` });
+
   return safeEdit(ctx, text, {
     reply_markup: {
-      inline_keyboard: [
-        [{ text: '🔄 Refresh', callback_data: `${refreshAction}:${emailId}` }],
-      ],
+      inline_keyboard: [navButtons],
     },
   });
 }
 
-async function getMessages(ctx, emailId) {
+async function getMessages(ctx, emailId, page = 1) {
   const userId = ctx.dbUser._id;
 
   let email = await EmailInventory.findOne({
@@ -247,9 +256,16 @@ async function getMessages(ctx, emailId) {
     );
   }
 
-  let text = `📥 Inbox for ${emailId} (${normalized.length} messages):\n\n`;
+  const totalPages = Math.ceil(normalized.length / MESSAGES_PER_PAGE);
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  const start = (page - 1) * MESSAGES_PER_PAGE;
+  const pageMessages = normalized.slice(start, start + MESSAGES_PER_PAGE);
 
-  for (const msg of normalized.slice(0, 10)) {
+  let text = `📥 Inbox for ${emailId} (${normalized.length} messages)\n`;
+  text += `Page ${page} of ${totalPages}\n\n`;
+
+  for (const msg of pageMessages) {
     if (msg.hasCode) text += `🔑 OTP: ${msg.code}\n`;
     if (msg.subject) text += `📝 ${msg.subject}\n`;
     if (msg.senderName) text += `👤 ${msg.senderName}\n`;
@@ -261,16 +277,17 @@ async function getMessages(ctx, emailId) {
       const bodyPreview = msg.body.length > 150 ? msg.body.substring(0, 150) + '...' : msg.body;
       text += `${bodyPreview}\n`;
     }
-    text += '\n';
+    text += '\n———————————\n\n';
   }
 
-  if (normalized.length > 10) {
-    text += `...and ${normalized.length - 10} more messages.\n`;
-  }
+  const navButtons = [];
+  if (page > 1) navButtons.push({ text: '⬅️ Prev', callback_data: `messages:${emailId}:p${page - 1}` });
+  navButtons.push({ text: '🔄 Refresh', callback_data: `messages:${emailId}:p${page}` });
+  if (page < totalPages) navButtons.push({ text: 'Next ➡️', callback_data: `messages:${emailId}:p${page + 1}` });
 
   return safeEdit(ctx, text, {
     reply_markup: {
-      inline_keyboard: [[{ text: '🔄 Refresh', callback_data: `messages:${emailId}` }]],
+      inline_keyboard: [navButtons],
     },
   });
 }
