@@ -85,58 +85,73 @@ export function setupAccountCommands(bot) {
       );
     }
 
-    const chatId = String(ctx.from.id);
-    const now = new Date();
-
-    // Find website user with this link code that hasn't expired
-    const websiteUser = await User.findOne({
-      telegramLinkCode: code.toUpperCase(),
-      telegramLinkCodeExpiry: { $gt: now },
-      telegramChatId: null,
-    });
-
-    if (!websiteUser) {
-      return ctx.reply('❌ Invalid or expired code. Please generate a new one from the website.');
+    // If user already has a real (non-placeholder) website account linked, block
+    if (ctx.dbUser && !ctx.dbUser.email?.endsWith('@telegram.local')) {
+      return ctx.reply(
+        '⚠️ Your Telegram is already linked to a website account.\n\n'
+        + 'If you want to link a different account:\n'
+        + '1. Use /unlink to disconnect the current account\n'
+        + '2. Then use /link CODE with the new code\n\n'
+        + 'Or if you just want to log into the website, send /start to get a login link.'
+      );
     }
 
-    // If this Telegram already has an auto-created account, remove it (merge into website account)
-    if (ctx.dbUser && String(ctx.dbUser._id) !== String(websiteUser._id)) {
-      const tgAccount = ctx.dbUser;
-      // Only delete the Telegram-created account if it's a placeholder (no real email)
-      if (tgAccount.email?.endsWith('@telegram.local')) {
-        // Transfer balance from Telegram account to website account if any
-        if (tgAccount.balance > 0) {
-          websiteUser.balance += tgAccount.balance;
-        }
-        await User.findByIdAndDelete(tgAccount._id);
-      } else {
-        // Real website account — just unlink Telegram from it
-        await User.findByIdAndUpdate(tgAccount._id, {
-          $set: { telegramChatId: null },
-        });
+    try {
+      const chatId = String(ctx.from.id);
+      const now = new Date();
+
+      // Find website user with this link code that hasn't expired
+      const websiteUser = await User.findOne({
+        telegramLinkCode: code.toUpperCase(),
+        telegramLinkCodeExpiry: { $gt: now },
+        telegramChatId: null,
+      });
+
+      if (!websiteUser) {
+        return ctx.reply('❌ Invalid or expired code. Please generate a new one from the website.');
       }
+
+      // If this Telegram already has an auto-created placeholder account, remove it (merge into website account)
+      if (ctx.dbUser && String(ctx.dbUser._id) !== String(websiteUser._id)) {
+        const tgAccount = ctx.dbUser;
+        if (tgAccount.email?.endsWith('@telegram.local')) {
+          // Transfer balance from Telegram account to website account if any
+          if (tgAccount.balance > 0) {
+            websiteUser.balance += tgAccount.balance;
+          }
+          await User.findByIdAndDelete(tgAccount._id);
+        } else {
+          // Unlink Telegram from old account first
+          await User.findByIdAndUpdate(tgAccount._id, {
+            $set: { telegramChatId: null },
+          });
+        }
+      }
+
+      // Link the website account to this Telegram
+      websiteUser.telegramUserId = chatId;
+      websiteUser.telegramChatId = chatId;
+      websiteUser.telegramLinkCode = null;
+      websiteUser.telegramLinkCodeExpiry = null;
+      if (ctx.from.username) {
+        websiteUser.telegram_username = `@${ctx.from.username}`;
+      }
+      await websiteUser.save();
+
+      ctx.dbUser = websiteUser;
+
+      return ctx.reply(
+        `🎉 Account linked successfully!\n\n`
+        + `👤 Name: ${websiteUser.name}\n`
+        + `📧 Email: ${websiteUser.email}\n`
+        + `💰 Balance: $${websiteUser.balance.toFixed(2)}\n\n`
+        + 'You can now use all features through Telegram!',
+        { reply_markup: mainKeyboard }
+      );
+    } catch (err) {
+      console.error('[Telegram] Link error:', err.message);
+      return ctx.reply('⚠️ Failed to link account. Please try again.');
     }
-
-    // Link the website account to this Telegram
-    websiteUser.telegramUserId = chatId;
-    websiteUser.telegramChatId = chatId;
-    websiteUser.telegramLinkCode = null;
-    websiteUser.telegramLinkCodeExpiry = null;
-    if (ctx.from.username) {
-      websiteUser.telegram_username = `@${ctx.from.username}`;
-    }
-    await websiteUser.save();
-
-    ctx.dbUser = websiteUser;
-
-    return ctx.reply(
-      `🎉 Account linked successfully!\n\n`
-      + `👤 Name: ${websiteUser.name}\n`
-      + `📧 Email: ${websiteUser.email}\n`
-      + `💰 Balance: $${websiteUser.balance.toFixed(2)}\n\n`
-      + 'You can now use all features through Telegram!',
-      { reply_markup: mainKeyboard }
-    );
   });
 
   // /unlink — Unlink Telegram from account
