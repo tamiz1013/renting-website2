@@ -87,7 +87,7 @@ export default function HomePage() {
         <p className="text-dim">No active assignments. Request an email above.</p>
       )}
 
-      <div className="grid-cards">
+      <div className="grid-assignments">
         {assignments.map((a) => (
           <AssignmentCard key={a.email_id} assignment={a} />
         ))}

@@ -25,7 +25,6 @@ export default function AssignmentCard({ assignment }) {
   });
 
   const messages = messagesData?.messages || [];
-  const latestWithCode = messages.find((m) => m.hasCode);
 
   const handleAction = async (action) => {
     setBusy(true);
@@ -80,28 +79,30 @@ export default function AssignmentCard({ assignment }) {
         <CopyButton text={a.email_id} label="Copy" />
       </div>
 
-      {/* Latest OTP/Message */}
+      {/* All Messages */}
       {messages.length > 0 && (
         <div className="mb-3">
-          {latestWithCode ? (
-            <div className="message-item">
-              <div className="flex items-center justify-between">
-                <span className="otp-code">{latestWithCode.code}</span>
-                <CopyButton text={latestWithCode.code} label="Copy OTP" />
-              </div>
-              {latestWithCode.body && (
-                <div className="text-xs text-dim mt-2" style={{ maxHeight: 60, overflow: 'hidden' }}>
-                  {latestWithCode.body}
+          {messages.map((msg, idx) => (
+            <div className="message-item" key={idx}>
+              {msg.hasCode ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="otp-code">{msg.code}</span>
+                    <CopyButton text={msg.code} label="Copy OTP" />
+                  </div>
+                  {msg.body && (
+                    <div className="text-xs text-dim mt-2" style={{ maxHeight: 60, overflow: 'hidden' }}>
+                      {msg.body}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-sm text-dim">
+                  {msg.body?.slice(0, 200)}
                 </div>
               )}
             </div>
-          ) : (
-            <div className="message-item">
-              <div className="text-sm text-dim">
-                {messages[0].body?.slice(0, 200)}
-              </div>
-            </div>
-          )}
+          ))}
           <div className="text-xs text-dim mt-2">{messages.length} message(s) received</div>
         </div>
       )}
