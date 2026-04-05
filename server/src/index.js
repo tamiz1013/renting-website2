@@ -19,6 +19,7 @@ import inboxRoutes from './routes/inbox.js';
 import depositRoutes from './routes/deposits.js';
 import pricingRoutes from './routes/pricing.js';
 import adminRoutes from './routes/admin.js';
+import transferRoutes from './routes/transfer.js';
 import { startCleanupWorker } from './services/cleanup.js';
 import { initBot } from './telegram/bot.js';
 
@@ -38,6 +39,7 @@ app.use('/api/inbox', inboxRoutes);
 app.use('/api/deposits', depositRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/transfer', transferRoutes);
 
 // 404
 app.use((req, res) => {

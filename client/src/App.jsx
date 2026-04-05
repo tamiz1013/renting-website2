@@ -8,6 +8,7 @@ import LongTermPage from './pages/LongTermPage.jsx';
 import InboxPage from './pages/InboxPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import DepositPage from './pages/DepositPage.jsx';
+import TransferPage from './pages/TransferPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import TelegramLoginPage from './pages/TelegramLoginPage.jsx';
 
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="inbox" element={<InboxPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="deposit" element={<DepositPage />} />
+        <Route path="transfer" element={<TransferPage />} />
         <Route
           path="admin/*"
           element={

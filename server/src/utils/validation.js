@@ -68,6 +68,12 @@ export const depositActionSchema = z.object({
   admin_note: z.string().max(500).optional(),
 });
 
+// Transfer
+export const transferSchema = z.object({
+  recipient_email: z.string().email(),
+  amount: z.number().positive(),
+});
+
 // Admin - pricing
 export const pricingUpdateSchema = z.object({
   platform: z.string().min(1).max(50).toLowerCase(),

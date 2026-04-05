@@ -12,7 +12,7 @@ const usageLogSchema = new mongoose.Schema(
         'short_term_ban', 'short_term_expire',
         'long_term_assign', 'long_term_release', 'long_term_ban',
         'deposit_request', 'deposit_approved', 'deposit_rejected',
-        'balance_deduct', 'balance_refund',
+        'balance_deduct', 'balance_refund', 'balance_transfer',
         'report',
         'admin_resolve', 'admin_delete', 'admin_refund',
       ],

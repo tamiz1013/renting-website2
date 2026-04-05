@@ -69,6 +69,10 @@ export const api = {
   createDeposit: (body) => request('/deposits', { method: 'POST', body: JSON.stringify(body) }),
   getDeposits: () => request('/deposits'),
 
+  // Transfer
+  createTransfer: (body) => request('/transfer', { method: 'POST', body: JSON.stringify(body) }),
+  getTransferHistory: () => request('/transfer/history'),
+
   // Admin
   adminGetEmails: (page = 1) => request(`/admin/emails?page=${page}`),
   adminBulkAddEmails: (body) => request('/admin/emails/bulk', { method: 'POST', body: JSON.stringify(body) }),

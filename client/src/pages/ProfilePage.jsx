@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [changingPw, setChangingPw] = useState(false);
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '' });
   const [reports, setReports] = useState([]);
@@ -101,6 +103,12 @@ export default function ProfilePage() {
               <div className="font-mono" style={{ fontSize: 24, color: 'var(--success)' }}>
                 ${user?.balance?.toFixed(2)}
               </div>
+              <button
+                className="btn-primary btn-sm mt-2"
+                onClick={() => navigate('/transfer')}
+              >
+                Transfer
+              </button>
             </div>
             <div>
               <div className="text-dim text-xs">Active Rentals</div>
