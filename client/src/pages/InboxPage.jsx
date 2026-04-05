@@ -190,7 +190,7 @@ export default function InboxPage() {
                 </div>
               )}
               {msg.body && (
-                <div className="text-sm text-dim" style={{ whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto' }}>
+                <div className="text-sm text-dim" style={{ whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto' }}>
                   {msg.body}
                 </div>
               )}

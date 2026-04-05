@@ -50,7 +50,7 @@ export default function HomePage() {
       {/* Platform Selection */}
       <div className="card mb-4">
         <h3 className="mb-3">Request an Email</h3>
-        <div className="grid-cards mb-3">
+        <div className="grid-platforms mb-3">
           {platforms.map((p) => (
             <button
               key={p.platform}
