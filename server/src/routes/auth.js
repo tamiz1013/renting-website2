@@ -148,12 +148,61 @@ router.post('/telegram-link', authenticate, async (req, res) => {
 router.delete('/telegram-link', authenticate, async (req, res) => {
   try {
     await User.findByIdAndUpdate(req.user._id, {
-      $set: { telegramChatId: null, telegramLinkCode: null, telegramLinkCodeExpiry: null },
+      $set: { telegramChatId: null, telegramLinkCode: null, telegramLinkCodeExpiry: null, telegramLoginCode: null, telegramLoginCodeExpiry: null },
     });
 
     res.json({ message: 'Telegram unlinked' });
   } catch (err) {
     console.error('[Auth] Telegram unlink error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/telegram-login — Validate one-time Telegram login code and return JWT
+router.post('/telegram-login', async (req, res) => {
+  try {
+    const { user_id, code } = req.body;
+    if (!user_id || !code) {
+      return res.status(400).json({ error: 'Missing user_id or code' });
+    }
+
+    const user = await User.findById(user_id);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid login link' });
+    }
+
+    if (
+      !user.telegramLoginCode ||
+      user.telegramLoginCode !== code ||
+      !user.telegramLoginCodeExpiry ||
+      user.telegramLoginCodeExpiry < new Date()
+    ) {
+      return res.status(401).json({ error: 'Login link expired or invalid' });
+    }
+
+    // Clear the one-time code
+    user.telegramLoginCode = null;
+    user.telegramLoginCodeExpiry = null;
+    await user.save();
+
+    const token = jwt.sign({ userId: user._id }, config.jwtSecret, {
+      expiresIn: config.jwtExpiresIn,
+    });
+
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        balance: user.balance,
+        telegram_username: user.telegram_username,
+        telegramLinked: !!user.telegramChatId,
+      },
+    });
+  } catch (err) {
+    console.error('[Auth] Telegram login error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

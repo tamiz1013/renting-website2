@@ -54,6 +54,20 @@ export default function LoginPage() {
             </button>
           </div>
         </form>
+        <div style={{ textAlign: 'center', margin: '16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '12px 0' }}>
+            <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #333' }} />
+            <span style={{ color: '#888', fontSize: 13 }}>or</span>
+            <hr style={{ flex: 1, border: 'none', borderTop: '1px solid #333' }} />
+          </div>
+          <a
+            href="https://t.me/yourotpservicebot?start=login"
+            className="btn-primary w-full"
+            style={{ display: 'block', textAlign: 'center', textDecoration: 'none', background: '#2AABEE' }}
+          >
+            Login with Telegram
+          </a>
+        </div>
         <p className="mt-4 text-sm" style={{ textAlign: 'center' }}>
           Don't have an account? <Link to="/signup">Sign up</Link>
         </p>

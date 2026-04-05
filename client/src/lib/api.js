@@ -35,6 +35,7 @@ export const api = {
   // Auth
   signup: (body) => request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  telegramLogin: (body) => request('/auth/telegram-login', { method: 'POST', body: JSON.stringify(body) }),
   getMe: () => request('/auth/me'),
   getMyReports: () => request('/auth/my-reports'),
   changePassword: (body) => request('/auth/password', { method: 'PUT', body: JSON.stringify(body) }),

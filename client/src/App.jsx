@@ -9,6 +9,7 @@ import InboxPage from './pages/InboxPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import DepositPage from './pages/DepositPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import TelegramLoginPage from './pages/TelegramLoginPage.jsx';
 
 function ProtectedRoute({ children, adminOnly }) {
   const { user, loading } = useAuth();
@@ -29,6 +30,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
       <Route path="/signup" element={user ? <Navigate to="/" /> : <SignupPage />} />
+      <Route path="/tglogin" element={user ? <Navigate to="/" /> : <TelegramLoginPage />} />
       <Route
         path="/"
         element={
