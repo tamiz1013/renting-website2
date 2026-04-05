@@ -336,6 +336,10 @@ async function handleReport(ctx, emailId) {
 
   if (!email) return replyOrEdit(ctx, '❌ Assignment not found or not owned by you.');
 
+  if (!email.short_term_inbox_received) {
+    return replyOrEdit(ctx, '❌ There is nothing to report. You may ban it if it is not working for you.');
+  }
+
   await EmailInventory.findByIdAndUpdate(email._id, {
     $inc: { problem_count: 1 },
     $push: {
