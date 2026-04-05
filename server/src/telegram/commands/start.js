@@ -93,10 +93,8 @@ export function setupStartCommand(bot) {
         + '/pricing — View platform prices\n'
         + '/unlink — Unlink Telegram from website account\n\n'
         + '*Actions \\(during rental\\):*\n'
-        + '/complete — Complete short\\-term \\(OTP received\\)\n'
         + '/release — Release email \\(get refund if unused\\)\n'
-        + '/ban — Ban a bad email \\(refund\\)\n'
-        + '/report — Report an issue',
+        + '/ban — Ban a bad email \(refund\)',
         { parse_mode: 'MarkdownV2', reply_markup: mainKeyboard }
       );
     }

@@ -76,8 +76,9 @@ export function setupInboxCommands(bot) {
           { text: `📥 Inbox: ${e.email_id}`, callback_data: `poll:${e.email_id}` },
         ]);
         buttons.push([
-          { text: '✅ Complete', callback_data: `st_complete:${e.email_id}` },
           { text: '↩️ Release', callback_data: `st_release:${e.email_id}` },
+          { text: '🚫 Ban', callback_data: `st_ban:${e.email_id}` },
+          { text: '📋 Report', callback_data: `st_report:${e.email_id}` },
         ]);
       }
     }
@@ -94,7 +95,7 @@ export function setupInboxCommands(bot) {
         ]);
         buttons.push([
           { text: '↩️ Release', callback_data: `lt_release:${e.email_id}` },
-          { text: '🚫 Ban', callback_data: `lt_ban:${e.email_id}` },
+          { text: '📋 Report', callback_data: `lt_report:${e.email_id}` },
         ]);
       }
     }

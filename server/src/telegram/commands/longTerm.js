@@ -143,15 +143,13 @@ export function setupLongTermCommands(bot) {
       + `📅 Expires: ${expiryStr}\n`
       + `💰 Price: $${price.toFixed(2)}\n\n`
       + `Use /inbox to check messages.\n\n`
-      + `• /lt_release ${email.email_id} — Release rental\n`
-      + `• /lt_ban ${email.email_id} — Ban email\n`
-      + `• /lt_report ${email.email_id} <comment> — Report issue`,
+      + `• /lt_release ${email.email_id} — Release rental`,
       { reply_markup: {
         inline_keyboard: [
           [{ text: '📥 Check Inbox', callback_data: `messages:${email.email_id}` }],
           [
             { text: '↩️ Release', callback_data: `lt_release:${email.email_id}` },
-            { text: '🚫 Ban', callback_data: `lt_ban:${email.email_id}` },
+            { text: '📋 Report', callback_data: `lt_report:${email.email_id}` },
           ],
         ],
       }}
@@ -172,47 +170,30 @@ export function setupLongTermCommands(bot) {
     await handleLtRelease(ctx, ctx.match[1]);
   });
 
-  // /lt_ban <email_id>
-  bot.command('lt_ban', async (ctx) => {
-    if (!requireAuth(ctx)) return;
-    const emailId = ctx.message.text.split(' ')[1]?.trim();
-    if (!emailId) return ctx.reply('Usage: /lt_ban <email_id>');
-    await handleLtBan(ctx, emailId);
-  });
-
-  bot.action(/^lt_ban:(.+)$/, async (ctx) => {
+  bot.action(/^lt_report:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     if (!requireAuth(ctx)) return;
-    await handleLtBan(ctx, ctx.match[1]);
-  });
 
-  // /lt_report <email_id> <comment>
-  bot.command('lt_report', async (ctx) => {
-    if (!requireAuth(ctx)) return;
-    const parts = ctx.message.text.split(' ');
-    const emailId = parts[1]?.trim();
-    const comment = parts.slice(2).join(' ').trim();
-    if (!emailId || !comment) return ctx.reply('Usage: /lt_report <email_id> <comment>');
-
+    const emailId = ctx.match[1];
     const userId = ctx.dbUser._id;
     const email = await EmailInventory.findOne({
       email_id: emailId, lock_type: 'long_term', long_term_user: userId,
     });
-    if (!email) return ctx.reply('❌ Long-term rental not found or not owned by you.');
+    if (!email) return ctx.editMessageText('❌ Long-term rental not found or not owned by you.');
 
     await EmailInventory.findByIdAndUpdate(email._id, {
       $inc: { problem_count: 1 },
       $push: {
-        reports: { user_id: userId, comment, lock_type: 'long_term', platform: null, at: new Date() },
+        reports: { user_id: userId, lock_type: 'long_term', platform: null, at: new Date() },
       },
     });
 
     await UsageLog.create({
       user_id: userId, email_id: emailId,
-      action: 'report', lock_type: 'long_term', meta: { comment },
+      action: 'report', lock_type: 'long_term',
     });
 
-    return ctx.reply('📋 Report submitted. Admin will review it.');
+    return ctx.editMessageText('📋 Report submitted. Admin will review it.');
   });
 }
 
@@ -248,62 +229,6 @@ async function handleLtRelease(ctx, emailId) {
   });
 
   return replyOrEdit(ctx, `↩️ Long-term rental released for ${emailId}.`);
-}
-
-async function handleLtBan(ctx, emailId) {
-  const userId = ctx.dbUser._id;
-
-  const email = await EmailInventory.findOne({
-    email_id: emailId, lock_type: 'long_term', long_term_user: userId,
-  });
-  if (!email) return replyOrEdit(ctx, '❌ Long-term rental not found or not owned by you.');
-
-  const platformUpdates = {};
-  if (email.platform_status) {
-    for (const [plat] of email.platform_status) {
-      platformUpdates[`platform_status.${plat}.banned`] = true;
-      platformUpdates[`platform_status.${plat}.available`] = false;
-    }
-  }
-
-  const banUpdate = await EmailInventory.findOneAndUpdate(
-    { email_id: emailId, lock_type: 'long_term', long_term_user: userId },
-    {
-      $set: {
-        lock_type: null, lock_platform: null,
-        lock_acquired_at: null, lock_acquired_by: null, lock_token: null,
-        long_term_user: null, long_term_assigned_at: null,
-        long_term_released_at: new Date(), rental_expiry: null,
-        ...platformUpdates,
-      },
-      $push: {
-        ban_records: { user_id: userId, platform: null, lock_type: 'long_term', at: new Date() },
-        lock_events: {
-          $each: [buildLockEvent('ban', 'long_term', 'long_term', userId)],
-          $slice: -50,
-        },
-      },
-    },
-    { new: true }
-  );
-
-  await User.findByIdAndUpdate(userId, {
-    $addToSet: { banned_emails: emailId },
-    $pull: { active_rentals: { email_id: emailId } },
-  });
-
-  if (banUpdate) {
-    const distinctBanners = new Set(banUpdate.ban_records.map((r) => r.user_id.toString()));
-    if (distinctBanners.size >= 3 && !banUpdate.globally_banned) {
-      await EmailInventory.findByIdAndUpdate(banUpdate._id, { $set: { globally_banned: true } });
-    }
-  }
-
-  await UsageLog.create({
-    user_id: userId, email_id: emailId, action: 'long_term_ban', lock_type: 'long_term',
-  });
-
-  return replyOrEdit(ctx, `🚫 Long-term email banned: ${emailId}`);
 }
 
 function replyOrEdit(ctx, text) {

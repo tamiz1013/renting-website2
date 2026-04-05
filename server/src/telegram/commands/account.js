@@ -65,8 +65,7 @@ export function setupAccountCommands(bot) {
       '🎉 Account created successfully!\n\n'
       + `👤 Name: ${telegramName}\n`
       + `💰 Balance: $0.00\n\n`
-      + 'You can now use all features through Telegram.\n'
-      + 'If you want to also use the website, type /setpassword to set login credentials.\n\n'
+      + 'You can now use all features through Telegram.\n\n'
       + 'Use the keyboard below to get started!',
       { reply_markup: mainKeyboard }
     );
@@ -186,47 +185,6 @@ export function setupAccountCommands(bot) {
     );
   });
 
-  // /setpassword <email> <password> — Set website login credentials for Telegram-only accounts
-  bot.command('setpassword', async (ctx) => {
-    if (!requireAuth(ctx)) return;
-
-    const parts = ctx.message.text.split(' ');
-    const email = parts[1]?.trim();
-    const password = parts[2]?.trim();
-
-    if (!email || !password) {
-      return ctx.reply(
-        '🔑 Set website login credentials:\n\n'
-        + '/setpassword your@email.com yourpassword\n\n'
-        + '⚠️ Password must be at least 6 characters.'
-      );
-    }
-
-    if (password.length < 6) {
-      return ctx.reply('❌ Password must be at least 6 characters.');
-    }
-
-    // Check if email is already taken by another user
-    const emailExists = await User.findOne({ email: email.toLowerCase(), _id: { $ne: ctx.dbUser._id } });
-    if (emailExists) {
-      return ctx.reply('❌ This email is already registered to another account.');
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 12);
-    await User.findByIdAndUpdate(ctx.dbUser._id, {
-      $set: { email: email.toLowerCase(), password: hashedPassword },
-    });
-
-    // Delete the command message since it contains the password
-    try { await ctx.deleteMessage(); } catch {}
-
-    return ctx.reply(
-      '✅ Website credentials set!\n\n'
-      + `You can now log in at the website with:\n`
-      + `Email: ${email}\n\n`
-      + '🔒 Your message with the password was deleted for security.'
-    );
-  });
 }
 
 function esc(text) {

@@ -140,39 +140,23 @@ export function setupShortTermCommands(bot) {
       + `⏱ Expires in: ${expiresMin} minutes\n\n`
       + `Use /inbox to check for incoming messages.\n\n`
       + `When done:\n`
-      + `• /complete ${email.email_id} — OTP received ✅\n`
       + `• /release ${email.email_id} — Cancel (refund if no messages)\n`
-      + `• /ban ${email.email_id} — Bad email (refund)\n`
-      + `• /report ${email.email_id} <comment> — Report issue`,
+      + `• /ban ${email.email_id} — Bad email (refund)`,
       { reply_markup: {
         inline_keyboard: [
           [
             { text: '📥 Check Inbox', callback_data: `poll:${email.email_id}` },
           ],
           [
-            { text: '✅ Complete', callback_data: `st_complete:${email.email_id}` },
             { text: '↩️ Release', callback_data: `st_release:${email.email_id}` },
           ],
           [
             { text: '🚫 Ban', callback_data: `st_ban:${email.email_id}` },
+            { text: '📋 Report', callback_data: `st_report:${email.email_id}` },
           ],
         ],
       }}
     );
-  });
-
-  // /complete <email_id> — Complete short-term assignment
-  bot.command('complete', async (ctx) => {
-    if (!requireAuth(ctx)) return;
-    const emailId = ctx.message.text.split(' ')[1]?.trim();
-    if (!emailId) return ctx.reply('Usage: /complete <email_id>');
-    await handleComplete(ctx, emailId);
-  });
-
-  bot.action(/^st_complete:(.+)$/, async (ctx) => {
-    await ctx.answerCbQuery();
-    if (!requireAuth(ctx)) return;
-    await handleComplete(ctx, ctx.match[1]);
   });
 
   // /release <email_id> — Release short-term
@@ -203,57 +187,11 @@ export function setupShortTermCommands(bot) {
     await handleBan(ctx, ctx.match[1]);
   });
 
-  // /report <email_id> <comment> — Report issue
-  bot.command('report', async (ctx) => {
+  bot.action(/^st_report:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
     if (!requireAuth(ctx)) return;
-    const parts = ctx.message.text.split(' ');
-    const emailId = parts[1]?.trim();
-    const comment = parts.slice(2).join(' ').trim();
-    if (!emailId || !comment) return ctx.reply('Usage: /report <email_id> <comment>');
-    await handleReport(ctx, emailId, comment);
+    await handleReport(ctx, ctx.match[1]);
   });
-}
-
-async function handleComplete(ctx, emailId, lockTokenOverride) {
-  const userId = ctx.dbUser._id;
-
-  const email = await EmailInventory.findOne({
-    email_id: emailId,
-    lock_type: 'short_term',
-    current_user: userId,
-  });
-
-  if (!email) return replyOrEdit(ctx, '❌ Assignment not found or not owned by you.');
-
-  const lockToken = lockTokenOverride || email.lock_token;
-
-  await EmailInventory.findOneAndUpdate(
-    { email_id: emailId, lock_token: lockToken, lock_type: 'short_term', current_user: userId },
-    {
-      $set: {
-        short_term_otp_received: true,
-        lock_type: null, lock_platform: null,
-        lock_acquired_at: null, lock_acquired_by: null, lock_token: null,
-        current_user: null, current_platform: null,
-        short_term_assigned_at: null, short_term_expires_at: null,
-        short_term_inbox_received: false,
-      },
-      $push: {
-        lock_events: {
-          $each: [buildLockEvent('complete', 'short_term', null, userId, { otp_received: true })],
-          $slice: -50,
-        },
-      },
-    }
-  );
-
-  await User.findByIdAndUpdate(userId, { $pull: { active_rentals: { email_id: emailId } } });
-  await UsageLog.create({
-    user_id: userId, email_id: emailId,
-    action: 'short_term_complete', platform: email.current_platform, lock_type: 'short_term',
-  });
-
-  return replyOrEdit(ctx, `✅ Assignment completed for ${emailId}. Thank you!`);
 }
 
 async function handleRelease(ctx, emailId, lockTokenOverride) {
@@ -389,33 +327,28 @@ async function handleBan(ctx, emailId, lockTokenOverride) {
   return replyOrEdit(ctx, `🚫 Email banned and refunded $${refundAmount.toFixed(2)}.`);
 }
 
-async function handleReport(ctx, emailId, comment) {
+async function handleReport(ctx, emailId) {
   const userId = ctx.dbUser._id;
 
   const email = await EmailInventory.findOne({
     email_id: emailId, lock_type: 'short_term', current_user: userId,
   });
 
-  if (!email) return ctx.reply('❌ Assignment not found or not owned by you.');
-
-  if (!email.short_term_inbox_received) {
-    return ctx.reply('❌ Cannot report before receiving any email.');
-  }
+  if (!email) return replyOrEdit(ctx, '❌ Assignment not found or not owned by you.');
 
   await EmailInventory.findByIdAndUpdate(email._id, {
     $inc: { problem_count: 1 },
     $push: {
-      reports: { user_id: userId, comment, lock_type: 'short_term', platform: email.current_platform, at: new Date() },
+      reports: { user_id: userId, lock_type: 'short_term', platform: email.current_platform, at: new Date() },
     },
   });
 
   await UsageLog.create({
     user_id: userId, email_id: emailId,
     action: 'report', platform: email.current_platform, lock_type: 'short_term',
-    meta: { comment },
   });
 
-  return ctx.reply('📋 Report submitted. Admin will review it.');
+  return replyOrEdit(ctx, '📋 Report submitted. Admin will review it.');
 }
 
 function replyOrEdit(ctx, text) {
