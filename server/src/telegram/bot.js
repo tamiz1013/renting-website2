@@ -105,10 +105,6 @@ export function initBot() {
   // Launch with long polling
   bot.launch({ dropPendingUpdates: true })
     .catch((err) => console.error('[Telegram] Bot launch error:', err.message));
-
-  // Graceful stop
-  process.once('SIGINT', () => bot.stop('SIGINT'));
-  process.once('SIGTERM', () => bot.stop('SIGTERM'));
 }
 
 function requireAuth(ctx, next) {

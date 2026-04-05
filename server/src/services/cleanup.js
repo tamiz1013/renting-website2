@@ -5,6 +5,8 @@ import UsageLog from '../models/UsageLog.js';
 import Pricing from '../models/Pricing.js';
 import { buildLockEvent } from '../utils/helpers.js';
 
+import { primaryConnection } from '../config/db.js';
+
 /**
  * Cleanup expired short-term assignments.
  * If OTP was NOT received → restore platform availability and refund balance.
@@ -98,13 +100,23 @@ let cleanupInterval = null;
 
 export function startCleanupWorker() {
   console.log('[Cleanup] Starting cleanup worker');
-  // Wrap every tick so a DB timeout never produces an unhandled rejection
-  cleanupInterval = setInterval(
-    () => cleanupExpiredShortTerm().catch((err) => console.error('[Cleanup] Tick error (non-fatal):', err.message)),
-    config.cleanupIntervalMs
-  );
-  // Run immediately once
-  cleanupExpiredShortTerm().catch((err) => console.error('[Cleanup] Initial run error (non-fatal):', err.message));
+
+  const run = () => {
+    // Wrap every tick so a DB timeout never produces an unhandled rejection
+    cleanupInterval = setInterval(
+      () => cleanupExpiredShortTerm().catch((err) => console.error('[Cleanup] Tick error (non-fatal):', err.message)),
+      config.cleanupIntervalMs
+    );
+    // Run immediately once
+    cleanupExpiredShortTerm().catch((err) => console.error('[Cleanup] Initial run error (non-fatal):', err.message));
+  };
+
+  // Wait for DB to be connected before running cleanup
+  if (primaryConnection.readyState === 1) {
+    run();
+  } else {
+    primaryConnection.once('connected', run);
+  }
 }
 
 export function stopCleanupWorker() {

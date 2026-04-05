@@ -73,17 +73,21 @@ export function setupAccountCommands(bot) {
   });
 
   // /link <CODE> — Link existing website account to this Telegram
-  bot.hears(/^\/link(?:@\S+)?(?:\s+(.+))?$/i, async (ctx) => {
-    const code = ctx.match?.[1]?.trim();
+  bot.command('link', async (ctx) => {
+    const code = ctx.message.text.split(' ')[1]?.trim();
     if (!code) {
       if (ctx.dbUser) {
         return ctx.reply(
-          'You are already linked to a website account.'
+          '🔗 To link a different website account:\n\n'
+          + '1. Go to your Profile on the website\n'
+          + '2. Click "Link Telegram"\n'
+          + '3. Copy the code\n'
+          + '4. Send the code here:\n\n'
+          + '/link YOUR_CODE'
         );
       }
       return ctx.reply(
-        '🔗 <b>Link your website account</b>\n\n'
-        + 'If you don\'t have website account:\n'
+        'If you don\'t have website account:\n'
         + 'Send /start and log in to the website\n\n'
         + 'If you already have an account:\n'
         + '1. Go to your Profile on the website\n'

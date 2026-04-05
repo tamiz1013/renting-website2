@@ -20,8 +20,8 @@ import depositRoutes from './routes/deposits.js';
 import pricingRoutes from './routes/pricing.js';
 import adminRoutes from './routes/admin.js';
 import transferRoutes from './routes/transfer.js';
-import { startCleanupWorker } from './services/cleanup.js';
-import { initBot } from './telegram/bot.js';
+import { startCleanupWorker, stopCleanupWorker } from './services/cleanup.js';
+import { initBot, bot } from './telegram/bot.js';
 
 const app = express();
 
@@ -52,10 +52,20 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`[Server] Running on port ${config.port}`);
   startCleanupWorker();
   initBot();
 });
+
+// Graceful shutdown for --watch restarts
+function shutdown() {
+  if (bot) bot.stop();
+  stopCleanupWorker();
+  server.close();
+  process.exit(0);
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
 
 export default app;
