@@ -15,7 +15,7 @@ const router = Router();
 // POST /api/auth/signup
 router.post('/signup', validate(signupSchema), async (req, res) => {
   try {
-    const { name, email, password, telegram_username } = req.validated;
+    const { name, email, password } = req.validated;
 
     const exists = await User.findOne({ email });
     if (exists) {
@@ -27,7 +27,6 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
       name,
       email,
       password: hashed,
-      telegram_username: telegram_username || null,
     });
 
     const token = jwt.sign({ userId: user._id }, config.jwtSecret, {

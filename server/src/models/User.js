@@ -17,13 +17,13 @@ const userSchema = new mongoose.Schema(
       },
     ],
     banned_emails: { type: [String], default: [] }, // email_ids this user has banned — never re-assign
-    telegram_username: { type: String, default: null, trim: true },
-    telegramUserId: { type: String, sparse: true, default: null }, // permanent — never cleared on unlink
-    telegramChatId: { type: String, unique: true, sparse: true, default: null },
-    telegramLinkCode: { type: String, default: null },
-    telegramLinkCodeExpiry: { type: Date, default: null },
-    telegramLoginCode: { type: String, default: null },
-    telegramLoginCodeExpiry: { type: Date, default: null },
+    telegram_username: { type: String, trim: true },
+    telegramUserId: { type: String, sparse: true }, // permanent — never cleared on unlink
+    telegramChatId: { type: String, unique: true, sparse: true },
+    telegramLinkCode: { type: String },
+    telegramLinkCodeExpiry: { type: Date },
+    telegramLoginCode: { type: String },
+    telegramLoginCodeExpiry: { type: Date },
   },
   { timestamps: true }
 );
