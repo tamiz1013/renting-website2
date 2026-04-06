@@ -7,6 +7,7 @@
     "dev": "npm run dev:server & npm run dev:client",
     "install:all": "cd server && npm install && cd ../client && npm install",
     "seed": "cd server && npm run seed",
-    "build": "cd client && npm run build"
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start & cd client && npm run preview"
   }
 }
