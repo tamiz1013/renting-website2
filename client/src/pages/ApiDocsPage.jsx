@@ -496,7 +496,7 @@ export default function ApiDocsPage() {
 const cors = require('cors');
 
 const API_KEY = "your_api_key_here"; // replace with your actual API key
-const BASE = "https://dashboard.render.com/api/v1";
+const BASE = "https://rent-email.onrender.com//api/v1";
 const headers = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
 
 const app = express();
