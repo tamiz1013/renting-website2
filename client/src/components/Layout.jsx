@@ -10,7 +10,7 @@ export default function Layout() {
       <aside className="sidebar">
         <div className="sidebar-brand">📧 Email Rental</div>
         <nav className="sidebar-nav">
-          <div className="sidebar-section">Main</div>
+          <div className="sidebar-section"></div>
           <NavLink to="/" end className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             Home
           </NavLink>
