@@ -66,7 +66,7 @@ export default function LongTermPage() {
               }}
               onClick={() => setDuration(d.key)}
             >
-              <div style={{ fontWeight: 600, fontSize: 16 }}>{d.label}</div>
+              <div style={{ fontWeight: 600, fontSize: 16 , color: 'white'}}>{d.label}</div>
               <div className="font-mono text-success mt-2" style={{ fontSize: 20 }}>
                 ${ltPricing?.[d.priceKey]?.toFixed(2) ?? '—'}
               </div>
