@@ -1,4 +1,7 @@
 import express from 'express';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import fs from 'fs';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -55,7 +58,8 @@ app.use(express.json({ limit: '1mb' }));
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-// Routes
+
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/short-term', shortTermRoutes);
 app.use('/api/long-term', longTermRoutes);
@@ -66,9 +70,22 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/transfer', transferRoutes);
 app.use('/api/v1', v1Routes);
 
-// 404
+// Serve static client build
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const clientDist = join(__dirname, '../../../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get('*', (req, res) => {
+    res.sendFile(join(clientDist, 'index.html'));
+  });
+}
+
+
+// 404 (API only, after static)
 app.use((req, res) => {
-  res.status(404).json({ error: 'Not found' });
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ error: 'Not found' });
+  }
 });
 
 // Global error handler
