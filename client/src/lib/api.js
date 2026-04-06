@@ -97,7 +97,7 @@ export const api = {
   adminGetReportedEmails: () => request('/admin/review/reported'),
   adminResolveEmail: (body) => request('/admin/review/resolve', { method: 'POST', body: JSON.stringify(body) }),
   adminRefundEmail: (body) => request('/admin/review/refund', { method: 'POST', body: JSON.stringify(body) }),
-  adminDeleteEmail: (body) => request('/admin/review/delete', { method: 'DELETE', body: JSON.stringify(body) }),
+  adminDeleteEmail: (body) => request('/admin/review/delete', { method: 'POST', body: JSON.stringify(body) }),
 };
 
 export { ApiError };

@@ -115,17 +115,38 @@ export function setupLongTermCommands(bot) {
       return ctx.editMessageText('❌ No available email for long-term rental. Try again later.');
     }
 
-    await User.findByIdAndUpdate(userId, {
-      $inc: { balance: -price },
-      $push: {
-        active_rentals: {
-          email_id: email.email_id,
-          platform: 'long_term',
-          expires_at: rentalExpiry,
-          lock_type: 'long_term',
+    // Atomic balance deduction with $gte guard
+    const deducted = await User.findOneAndUpdate(
+      { _id: userId, balance: { $gte: price } },
+      {
+        $inc: { balance: -price },
+        $push: {
+          active_rentals: {
+            email_id: email.email_id,
+            platform: 'long_term',
+            expires_at: rentalExpiry,
+            lock_type: 'long_term',
+          },
         },
       },
-    });
+      { new: true }
+    );
+
+    if (!deducted) {
+      // Rollback: release the email lock
+      await EmailInventory.findOneAndUpdate(
+        { email_id: email.email_id, lock_token: lockToken },
+        {
+          $set: {
+            lock_type: null, lock_token: null,
+            lock_acquired_at: null, lock_acquired_by: null,
+            long_term_user: null, long_term_assigned_at: null,
+            long_term_released_at: null, rental_expiry: null,
+          },
+        }
+      );
+      return ctx.editMessageText('❌ Insufficient balance. The email has been released.');
+    }
 
     await UsageLog.create({
       user_id: userId, email_id: email.email_id,

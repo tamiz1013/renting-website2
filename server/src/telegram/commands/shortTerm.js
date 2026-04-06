@@ -108,18 +108,38 @@ export function setupShortTermCommands(bot) {
       return ctx.editMessageText(`❌ No available email for "${platform}". Try again later.`);
     }
 
-    // Deduct balance
-    await User.findByIdAndUpdate(userId, {
-      $inc: { balance: -pricing.short_term_price },
-      $push: {
-        active_rentals: {
-          email_id: email.email_id,
-          platform,
-          expires_at: expiresAt,
-          lock_type: 'short_term',
+    // Atomically deduct balance (only if sufficient)
+    const deducted = await User.findOneAndUpdate(
+      { _id: userId, balance: { $gte: pricing.short_term_price } },
+      {
+        $inc: { balance: -pricing.short_term_price },
+        $push: {
+          active_rentals: {
+            email_id: email.email_id,
+            platform,
+            expires_at: expiresAt,
+            lock_type: 'short_term',
+          },
         },
       },
-    });
+    );
+
+    // If balance deduction failed, roll back the email lock
+    if (!deducted) {
+      await EmailInventory.findOneAndUpdate(
+        { _id: email._id, lock_token: lockToken },
+        {
+          $set: {
+            lock_type: null, lock_platform: null, lock_acquired_at: null,
+            lock_acquired_by: null, lock_token: null, current_user: null,
+            current_platform: null, short_term_assigned_at: null,
+            short_term_expires_at: null,
+            [`platform_status.${platform}.available`]: true,
+          },
+        }
+      );
+      return ctx.editMessageText('❌ Insufficient balance');
+    }
 
     await UsageLog.create({
       user_id: userId,

@@ -475,8 +475,8 @@ router.post('/review/resolve', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/review/delete — Permanently delete an email from inventory (no refund)
-router.delete('/review/delete', async (req, res) => {
+// POST /api/admin/review/delete — Permanently delete an email from inventory (no refund)
+router.post('/review/delete', async (req, res) => {
   try {
     const { email_id } = req.body;
     if (!email_id) return res.status(400).json({ error: 'email_id required' });

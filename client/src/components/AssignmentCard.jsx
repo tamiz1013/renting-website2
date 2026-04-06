@@ -5,10 +5,12 @@ import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { CopyButton } from './CopyButton.jsx';
+import { useConfirm } from './ConfirmDialog.jsx';
 
 export default function AssignmentCard({ assignment }) {
   const { refreshUser } = useAuth();
   const queryClient = useQueryClient();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [busy, setBusy] = useState(false);
   const [reportComment, setReportComment] = useState('');
   const [showReport, setShowReport] = useState(false);
@@ -67,6 +69,7 @@ export default function AssignmentCard({ assignment }) {
 
   return (
     <div className="assignment-card">
+      {confirmDialog}
       <div className="flex items-center justify-between mb-2">
         <span className="platform-name">{a.current_platform}</span>
         <div className={`timer ${countdown.expired ? 'timer-expired' : ''}`}>

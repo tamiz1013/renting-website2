@@ -66,7 +66,7 @@ export default function HomePage() {
                 <span style={{ textTransform: 'capitalize', fontWeight: 600, color: 'var(--text)' }}>{p.platform}</span>
                 <span className="font-mono text-success">${p.short_term_price}</span>
               </div>
-              <div className="text-xs text-dim mt-2">10 minutes • OTP delivery</div>
+              <div className="text-xs text-dim mt-2">30 minutes • OTP delivery</div>
             </button>
           ))}
         </div>

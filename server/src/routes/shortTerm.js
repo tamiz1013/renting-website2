@@ -12,7 +12,7 @@ import {
   banSchema,
   reportSchema,
 } from '../utils/validation.js';
-import { generateLockToken, buildLockEvent } from '../utils/helpers.js';
+import { generateLockToken, buildLockEvent, escapeRegex } from '../utils/helpers.js';
 import RealtimeEmail from '../models/RealtimeEmail.js';
 import { matchesPlatform } from '../utils/helpers.js';
 
@@ -92,18 +92,37 @@ router.post('/assign', authenticate, validate(shortTermRequestSchema), async (re
       return res.status(404).json({ error: `No available email for platform "${platform}"` });
     }
 
-    // Deduct balance
-    await User.findByIdAndUpdate(userId, {
-      $inc: { balance: -pricing.short_term_price },
-      $push: {
-        active_rentals: {
-          email_id: email.email_id,
-          platform,
-          expires_at: expiresAt,
+    // Atomically deduct balance (only if sufficient)
+    const deducted = await User.findOneAndUpdate(
+      { _id: userId, balance: { $gte: pricing.short_term_price } },
+      {
+        $inc: { balance: -pricing.short_term_price },
+        $push: {
+          active_rentals: {
+            email_id: email.email_id,
+            platform,
+            expires_at: expiresAt,
           lock_type: 'short_term',
         },
       },
     });
+
+    // If balance deduction failed, roll back the email lock
+    if (!deducted) {
+      await EmailInventory.findOneAndUpdate(
+        { _id: email._id, lock_token: lockToken },
+        {
+          $set: {
+            lock_type: null, lock_platform: null, lock_acquired_at: null,
+            lock_acquired_by: null, lock_token: null, current_user: null,
+            current_platform: null, short_term_assigned_at: null,
+            short_term_expires_at: null,
+            [`platform_status.${platform}.available`]: true,
+          },
+        }
+      );
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
 
     await UsageLog.create({
       user_id: userId,
@@ -134,7 +153,19 @@ router.post('/complete', authenticate, validate(shortTermActionSchema), async (r
     const { email_id, lock_token } = req.validated;
     const userId = req.user._id;
 
-    const email = await EmailInventory.findOneAndUpdate(
+    // Read current state first to capture platform before clearing it
+    const current = await EmailInventory.findOne({
+      email_id,
+      lock_token,
+      lock_type: 'short_term',
+      current_user: userId,
+    });
+    if (!current) {
+      return res.status(404).json({ error: 'Assignment not found or not owned by you' });
+    }
+    const platform = current.current_platform;
+
+    await EmailInventory.findOneAndUpdate(
       {
         email_id,
         lock_token,
@@ -158,17 +189,12 @@ router.post('/complete', authenticate, validate(shortTermActionSchema), async (r
         },
         $push: {
           lock_events: {
-            $each: [buildLockEvent('complete', 'short_term', null, userId, { otp_received: true })],
+            $each: [buildLockEvent('complete', 'short_term', platform, userId, { otp_received: true })],
             $slice: -50,
           },
         },
-      },
-      { new: true }
+      }
     );
-
-    if (!email) {
-      return res.status(404).json({ error: 'Assignment not found or not owned by you' });
-    }
 
     // Remove from user's active rentals
     await User.findByIdAndUpdate(userId, {
@@ -179,7 +205,7 @@ router.post('/complete', authenticate, validate(shortTermActionSchema), async (r
       user_id: userId,
       email_id,
       action: 'short_term_complete',
-      platform: email.current_platform,
+      platform,
       lock_type: 'short_term',
     });
 
@@ -215,8 +241,8 @@ router.post('/release', authenticate, validate(shortTermActionSchema), async (re
       const sinceTime = email.short_term_assigned_at;
       const msgCount = await RealtimeEmail.countDocuments({
         $or: [
-          { forwardedFrom: { $regex: email_id, $options: 'i' } },
-          { emailAccount: { $regex: email_id, $options: 'i' } },
+          { forwardedFrom: { $regex: escapeRegex(email_id), $options: 'i' } },
+          { emailAccount: { $regex: escapeRegex(email_id), $options: 'i' } },
         ],
         ...(sinceTime ? { createdAt: { $gte: sinceTime } } : {}),
       });

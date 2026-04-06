@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, default: null },
     role: { type: String, enum: ['user', 'admin'], default: 'user' },
-    balance: { type: Number, default: 0, min: 0 },
+    balance: { type: Number, default: 0 },
     active_rentals: [
       {
         email_id: String,

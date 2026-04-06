@@ -1,15 +1,19 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import config from './config/index.js';
 
-// Prevent the process from crashing on unhandled promise rejections or
-// uncaught exceptions (e.g. DB timeouts during internet outages)
+// Unhandled rejection — log but keep running (e.g. DB timeouts)
 process.on('unhandledRejection', (reason) => {
-  console.error('[Server] Unhandled rejection (non-fatal):', reason?.message || reason);
+  console.error('[Server] Unhandled rejection:', reason?.message || reason);
 });
+// Uncaught exceptions — log and exit (process state may be corrupt)
 process.on('uncaughtException', (err) => {
-  console.error('[Server] Uncaught exception (non-fatal):', err.message);
+  console.error('[Server] Uncaught exception — shutting down:', err);
+  process.exit(1);
 });
+
 import './config/db.js'; // Initialize DB connections
 
 import authRoutes from './routes/auth.js';
@@ -26,7 +30,24 @@ import { initBot, bot } from './telegram/bot.js';
 
 const app = express();
 
-app.use(cors());
+// Security headers
+app.use(helmet());
+
+// CORS — restrict to frontend origin in production
+app.use(cors({
+  origin: config.isProduction ? config.frontendUrl : true,
+  credentials: true,
+}));
+
+// Global rate limiter — 100 requests per minute per IP
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+}));
+
 app.use(express.json({ limit: '1mb' }));
 
 // Health check

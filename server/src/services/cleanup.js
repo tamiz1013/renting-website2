@@ -96,6 +96,71 @@ async function cleanupExpiredShortTerm() {
   }
 }
 
+/**
+ * Cleanup expired long-term rentals.
+ * When rental_expiry passes, release the email back to the pool.
+ * No refund — the user got what they paid for (time expired naturally).
+ */
+async function cleanupExpiredLongTerm() {
+  const now = new Date();
+
+  const expired = await EmailInventory.find({
+    lock_type: 'long_term',
+    rental_expiry: { $lte: now },
+  });
+
+  for (const email of expired) {
+    const userId = email.long_term_user;
+
+    await EmailInventory.findOneAndUpdate(
+      { _id: email._id, lock_type: 'long_term' },
+      {
+        $set: {
+          lock_type: null,
+          lock_platform: null,
+          lock_acquired_at: null,
+          lock_acquired_by: null,
+          lock_token: null,
+          long_term_user: null,
+          long_term_assigned_at: null,
+          long_term_released_at: now,
+          rental_expiry: null,
+        },
+        $push: {
+          lock_events: {
+            $each: [buildLockEvent('expire', 'long_term', 'long_term', userId)],
+            $slice: -50,
+          },
+        },
+      }
+    );
+
+    // Remove from user's active_rentals
+    if (userId) {
+      await User.findByIdAndUpdate(userId, {
+        $pull: { active_rentals: { email_id: email.email_id } },
+      });
+    }
+
+    await UsageLog.create({
+      user_id: userId,
+      email_id: email.email_id,
+      action: 'long_term_release',
+      lock_type: 'long_term',
+      meta: { reason: 'expired' },
+    });
+  }
+
+  if (expired.length > 0) {
+    console.log(`[Cleanup] Processed ${expired.length} expired long-term rentals`);
+  }
+}
+
+async function runCleanup() {
+  await cleanupExpiredShortTerm();
+  await cleanupExpiredLongTerm();
+}
+
 let cleanupInterval = null;
 
 export function startCleanupWorker() {
@@ -104,11 +169,11 @@ export function startCleanupWorker() {
   const run = () => {
     // Wrap every tick so a DB timeout never produces an unhandled rejection
     cleanupInterval = setInterval(
-      () => cleanupExpiredShortTerm().catch((err) => console.error('[Cleanup] Tick error (non-fatal):', err.message)),
+      () => runCleanup().catch((err) => console.error('[Cleanup] Tick error (non-fatal):', err.message)),
       config.cleanupIntervalMs
     );
     // Run immediately once
-    cleanupExpiredShortTerm().catch((err) => console.error('[Cleanup] Initial run error (non-fatal):', err.message));
+    runCleanup().catch((err) => console.error('[Cleanup] Initial run error (non-fatal):', err.message));
   };
 
   // Wait for DB to be connected before running cleanup

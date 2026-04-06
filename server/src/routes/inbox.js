@@ -5,7 +5,7 @@ import Pricing from '../models/Pricing.js';
 import { authenticate } from '../middleware/auth.js';
 import { validateQuery } from '../middleware/validate.js';
 import { inboxPollSchema } from '../utils/validation.js';
-import { matchesPlatform, normalizeMessage } from '../utils/helpers.js';
+import { matchesPlatform, normalizeMessage, escapeRegex } from '../utils/helpers.js';
 
 const router = Router();
 
@@ -63,8 +63,8 @@ router.get('/poll', authenticate, validateQuery(inboxPollSchema), async (req, re
 
     const query = {
       $or: [
-        { forwardedFrom: { $regex: email_id, $options: 'i' } },
-        { emailAccount: { $regex: email_id, $options: 'i' } },
+        { forwardedFrom: { $regex: escapeRegex(email_id), $options: 'i' } },
+        { emailAccount: { $regex: escapeRegex(email_id), $options: 'i' } },
       ],
     };
 
@@ -173,12 +173,14 @@ router.get('/messages', authenticate, validateQuery(inboxPollSchema), async (req
     // see their full inbox, and emailTime may be stored as a string in the realtime
     // collection which breaks BSON Date comparisons.
     const localPart = email_id.split('@')[0]; // e.g. "child1" from "child1@icloud.com"
+    const escapedId = escapeRegex(email_id);
+    const escapedLocal = escapeRegex(localPart);
     const query = {
       $or: [
-        { forwardedFrom: { $regex: email_id, $options: 'i' } },
-        { emailAccount: { $regex: email_id, $options: 'i' } },
-        { forwardedFrom: { $regex: localPart, $options: 'i' } },
-        { emailAccount: { $regex: localPart, $options: 'i' } },
+        { forwardedFrom: { $regex: escapedId, $options: 'i' } },
+        { emailAccount: { $regex: escapedId, $options: 'i' } },
+        { forwardedFrom: { $regex: escapedLocal, $options: 'i' } },
+        { emailAccount: { $regex: escapedLocal, $options: 'i' } },
       ],
     };
 
@@ -186,8 +188,6 @@ router.get('/messages', authenticate, validateQuery(inboxPollSchema), async (req
       .sort({ emailTime: -1 })
       .limit(200)
       .lean();
-
-    console.log(`[Inbox] /messages query for ${email_id}: found ${rawMessages.length} docs`);
 
     const normalized = rawMessages.map((msg) => normalizeMessage(msg));
 
@@ -238,10 +238,10 @@ router.get('/debug', authenticate, async (req, res) => {
   const localPart = email_id.split('@')[0];
   const docs = await RealtimeEmail.find({
     $or: [
-      { forwardedFrom: { $regex: email_id, $options: 'i' } },
-      { emailAccount: { $regex: email_id, $options: 'i' } },
-      { forwardedFrom: { $regex: localPart, $options: 'i' } },
-      { emailAccount: { $regex: localPart, $options: 'i' } },
+      { forwardedFrom: { $regex: escapeRegex(email_id), $options: 'i' } },
+      { emailAccount: { $regex: escapeRegex(email_id), $options: 'i' } },
+      { forwardedFrom: { $regex: escapeRegex(localPart), $options: 'i' } },
+      { emailAccount: { $regex: escapeRegex(localPart), $options: 'i' } },
     ],
   }).limit(5).lean();
 

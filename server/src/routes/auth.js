@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import config from '../config/index.js';
 import User from '../models/User.js';
 import EmailInventory from '../models/EmailInventory.js';
@@ -12,8 +13,15 @@ import { signupSchema, loginSchema, changePasswordSchema } from '../utils/valida
 
 const router = Router();
 
+// Stricter rate limit for auth endpoints — 10 attempts per 15 minutes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Too many attempts, please try again later' },
+});
+
 // POST /api/auth/signup
-router.post('/signup', validate(signupSchema), async (req, res) => {
+router.post('/signup', authLimiter, validate(signupSchema), async (req, res) => {
   try {
     const { name, email, password } = req.validated;
 
@@ -52,7 +60,7 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
 });
 
 // POST /api/auth/login
-router.post('/login', validate(loginSchema), async (req, res) => {
+router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.validated;
 
@@ -158,7 +166,7 @@ router.delete('/telegram-link', authenticate, async (req, res) => {
 });
 
 // POST /api/auth/telegram-login — Validate one-time Telegram login code and return JWT
-router.post('/telegram-login', async (req, res) => {
+router.post('/telegram-login', authLimiter, async (req, res) => {
   try {
     const { user_id, code } = req.body;
     if (!user_id || !code) {

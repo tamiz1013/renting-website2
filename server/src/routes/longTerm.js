@@ -103,18 +103,36 @@ router.post('/assign', authenticate, validate(longTermRequestSchema), async (req
       return res.status(404).json({ error: 'No available email for long-term rental' });
     }
 
-    // Deduct balance
-    await User.findByIdAndUpdate(userId, {
-      $inc: { balance: -price },
-      $push: {
-        active_rentals: {
-          email_id: email.email_id,
-          platform: 'long_term',
-          expires_at: rentalExpiry,
-          lock_type: 'long_term',
+    // Atomically deduct balance (only if sufficient)
+    const deducted = await User.findOneAndUpdate(
+      { _id: userId, balance: { $gte: price } },
+      {
+        $inc: { balance: -price },
+        $push: {
+          active_rentals: {
+            email_id: email.email_id,
+            platform: 'long_term',
+            expires_at: rentalExpiry,
+            lock_type: 'long_term',
+          },
         },
       },
-    });
+    );
+
+    // If balance deduction failed, roll back the email lock
+    if (!deducted) {
+      await EmailInventory.findOneAndUpdate(
+        { _id: email._id, lock_token: lockToken },
+        {
+          $set: {
+            lock_type: null, lock_platform: null, lock_acquired_at: null,
+            lock_acquired_by: null, lock_token: null, long_term_user: null,
+            long_term_assigned_at: null, rental_expiry: null,
+          },
+        }
+      );
+      return res.status(400).json({ error: 'Insufficient balance' });
+    }
 
     await UsageLog.create({
       user_id: userId,

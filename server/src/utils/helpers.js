@@ -4,6 +4,11 @@ export function generateLockToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+// Escape special regex characters to prevent ReDoS
+export function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Push a lock event, keeping only the latest 50
 export function buildLockEvent(action, type, platform, userId, meta = {}) {
   return {

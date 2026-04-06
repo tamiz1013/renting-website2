@@ -234,15 +234,6 @@ function PricingTab() {
   const { data: ltData, isLoading: ltLoading } = useQuery({
     queryKey: ['adminLtPricing'],
     queryFn: api.adminGetLongTermPricing,
-    onSuccess: (d) => {
-      if (d?.pricing) {
-        setLtForm({
-          long_term_7d_price: String(d.pricing.long_term_7d_price ?? ''),
-          long_term_1m_price: String(d.pricing.long_term_1m_price ?? ''),
-          long_term_3m_price: String(d.pricing.long_term_3m_price ?? ''),
-        });
-      }
-    },
   });
 
   // Populate form when data loads (onSuccess may not fire in all RQ versions)
