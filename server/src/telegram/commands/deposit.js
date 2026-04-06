@@ -13,9 +13,10 @@ export function setupDepositCommands(bot) {
 
     if (!amount || isNaN(amount) || amount <= 0 || !transactionId) {
       return ctx.reply(
-        '💰 *Deposit Request*\n\n'
-        + 'Send your payment and then submit a deposit request:\n\n'
-        + '`/deposit <amount> <transaction_id>`\n\n'
+        `💰 *To make a deposit, please follow the steps below:*\n\n`
+        + '1. Send your payment to the following Binance Pay ID: `115838285`\n\n'
+        + '2. After completing the payment, submit your deposit request using this format:\n\n'
+        + '`/deposit <amount> <order_id>`\n\n'
         + 'Example:\n'
         + '`/deposit 10 TXN123456789`',
         { parse_mode: 'Markdown' }
@@ -27,7 +28,7 @@ export function setupDepositCommands(bot) {
     const deposit = await DepositRequest.create({
       user_id: userId,
       amount,
-      transaction_id: transactionId,
+      order_id: transactionId,
     });
 
     await UsageLog.create({

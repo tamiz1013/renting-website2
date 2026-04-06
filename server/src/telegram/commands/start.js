@@ -62,9 +62,20 @@ async function findOrCreateAndSendLink(ctx) {
 
   return ctx.reply(
     `👋 Welcome, ${user.name}!\n\n`
-    + `💰 Balance: $${user.balance.toFixed(2)}\n\n`
-    + `🌐 Login to Website:\n${loginUrl}`,
-    { reply_markup: mainKeyboard }
+    + `💰 Balance: $${user.balance.toFixed(2)}\n\n\n\n`
+    + '1. Send your payment to the following Binance Pay ID: <code>115838285</code>\n\n'
+    + '2. After completing the payment, submit your deposit request using this format:\n\n'
+    + `/deposit &lt;amount&gt; &lt;order_id&gt;\n\n`
+    + `Example:\n`
+    + `/deposit 10 TXN123456789`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🌐 Login to Website', url: loginUrl }],
+        ],
+      },
+    }
   );
 }
 

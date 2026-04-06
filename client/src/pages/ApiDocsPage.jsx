@@ -492,9 +492,22 @@ export default function ApiDocsPage() {
           Complete workflow — request an email, poll for OTP, and complete:
         </p>
         <CodeBlock
-          code={`const API_KEY = "your_api_key_here";
-const BASE = "${BASE_URL}/api/v1";
+          code={`const express = require('express');
+const cors = require('cors');
+
+const API_KEY = "your_api_key_here"; // replace with your actual API key
+const BASE = "https://your-domain.com/api/v1";
 const headers = { "X-API-Key": API_KEY, "Content-Type": "application/json" };
+
+const app = express();
+const PORT = 3002;
+
+app.use(cors());
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Hello, World!' });
+});
 
 async function getEmail(platform) {
   // 1. Request email
@@ -503,7 +516,12 @@ async function getEmail(platform) {
     headers,
     body: JSON.stringify({ platform }),
   });
-  const { email_id, lock_token } = await assignRes.json();
+  const assignData = await assignRes.json();
+  if (!assignRes.ok || !assignData.email_id) {
+    console.error("Request failed:", assignData);
+    return null;
+  }
+  const { email_id, lock_token } = assignData;
   console.log(\`Got email: \${email_id}\`);
 
   // 2. Poll for OTP (every 5s, up to 5 minutes)
@@ -512,11 +530,21 @@ async function getEmail(platform) {
       \`\${BASE}/short-term/inbox?email_id=\${encodeURIComponent(email_id)}\`,
       { headers }
     );
-    const { messages } = await inboxRes.json();
+    const inboxData = await inboxRes.json();
+    const messages = inboxData.messages || [];
+
+    if (messages.length > 0) {
+      console.log("Raw messages:", JSON.stringify(messages, null, 2));
+    }
 
     for (const msg of messages) {
-      if (msg.otp) {
-        console.log(\`OTP received: \${msg.otp}\`);
+      // Try dedicated otp field first, then extract from subject/body via regex
+      const text = msg.otp || msg.subject || msg.body || msg.text || "";
+      const otpMatch = String(text).match(/\\b(\\d{4,8})\\b/);
+      const otp = msg.otp || (otpMatch && otpMatch[1]);
+
+      if (otp) {
+        console.log(\`OTP received: \${otp}\`);
 
         // 3. Complete the assignment
         await fetch(\`\${BASE}/short-term/complete\`, {
@@ -525,7 +553,7 @@ async function getEmail(platform) {
           body: JSON.stringify({ email_id, lock_token }),
         });
         console.log("Done!");
-        return msg.otp;
+        return otp;
       }
     }
 
@@ -543,7 +571,11 @@ async function getEmail(platform) {
 }
 
 // Usage
-getEmail("instagram").then((otp) => console.log("Result:", otp));`}
+getEmail("x").then((otp) => console.log("Result:", otp));
+
+app.listen(PORT, () => {
+  console.log(\`Server running at http://localhost:\${PORT}/\`);
+});`}
         />
       </div>
 
