@@ -72,7 +72,7 @@ app.use('/api/v1', v1Routes);
 
 // Serve static client build
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const clientDist = join(__dirname, '../../../client/dist');
+const clientDist = join(__dirname, '../../client/dist');
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get('*', (req, res) => {

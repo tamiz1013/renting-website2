@@ -8,6 +8,6 @@
     "install:all": "cd server && npm install && cd ../client && npm install --include=dev",
     "seed": "cd server && npm run seed",
     "build": "cd client && npm run build",
-    "start": "cd server && npm start"
+    "start": "node server/src/index.js"
   }
 }
