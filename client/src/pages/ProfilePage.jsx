@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { api } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { CopyButton } from '../components/CopyButton.jsx';
 
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
@@ -180,16 +181,85 @@ export default function ProfilePage() {
               </p>
               {linkCode ? (
                 <div>
-                  <div className="form-group">
-                    <label>Your Link Code</label>
-                    <div className="font-mono" style={{ fontSize: 24, letterSpacing: 4, color: 'var(--primary)', fontWeight: 700 }}>
-                      {linkCode}
+                  <div style={{
+                    background: 'var(--bg-secondary, #19191c)',
+                    borderRadius: 10,
+                    padding: '16px 20px',
+                    marginBottom: 16,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <code style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        letterSpacing: 1,
+                        color: 'var(--text-primary)',
+                        flex: 1,
+                      }}>
+                        /link {linkCode}
+                      </code>
+                      <CopyButton text={`/link ${linkCode}`} label="Copy" />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div className="text-sm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          background: 'var(--primary)',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          width: 22,
+                          height: 22,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}>1</span>
+                        Copy the command above
+                      </div>
+                      <div className="text-sm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          background: 'var(--primary)',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          width: 22,
+                          height: 22,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}>2</span>
+                        <span>
+                          Go to{' '}
+                          <a
+                            href="https://t.me/yourotpservicebot"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--primary)', fontWeight: 600 }}
+                          >
+                            Telegram Bot ↗
+                          </a>
+                        </span>
+                      </div>
+                      <div className="text-sm" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          background: 'var(--primary)',
+                          color: '#fff',
+                          borderRadius: '50%',
+                          width: 22,
+                          height: 22,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}>3</span>
+                        Send the copied command — you'll be connected!
+                      </div>
                     </div>
                   </div>
-                  <p className="text-sm text-dim mb-3">
-                    Open the bot on Telegram and send:<br />
-                    <code>/link {linkCode}</code>
-                  </p>
                   <p className="text-xs text-dim">
                     Code expires at {new Date(linkExpiry).toLocaleTimeString()}
                   </p>
