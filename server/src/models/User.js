@@ -24,6 +24,8 @@ const userSchema = new mongoose.Schema(
     telegramLinkCodeExpiry: { type: Date },
     telegramLoginCode: { type: String },
     telegramLoginCodeExpiry: { type: Date },
+    apiKeyHash: { type: String, default: null },
+    apiKeyPrefix: { type: String, default: null },
   },
   { timestamps: true }
 );

@@ -15,6 +15,8 @@ export default function ProfilePage() {
   const [linkCode, setLinkCode] = useState(null);
   const [linkExpiry, setLinkExpiry] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [apiKey, setApiKey] = useState(null);
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
 
   useEffect(() => {
     api.getMyReports()
@@ -270,6 +272,75 @@ export default function ProfilePage() {
                 </button>
               )}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* API Key Management */}
+      <div className="card mb-4">
+        <h3 className="mb-3">🔑 API Access</h3>
+        <p className="text-sm text-dim mb-3">
+          Generate an API key to access short-term email services programmatically.{' '}
+          <a href="/docs" style={{ color: 'var(--primary)' }}>View API Docs →</a>
+        </p>
+        {user?.apiKeyPrefix && !apiKey && (
+          <div className="mb-3">
+            <div className="text-sm">Current key: <code className="font-mono">{user.apiKeyPrefix}••••••••</code></div>
+          </div>
+        )}
+        {apiKey && (
+          <div style={{
+            background: 'var(--bg)',
+            borderRadius: 8,
+            padding: '12px 16px',
+            marginBottom: 16,
+            border: '1px solid var(--border)',
+          }}>
+            <div className="text-xs text-dim mb-1">Your API Key (copy now — it won't be shown again)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <code style={{ fontSize: 13, flex: 1, wordBreak: 'break-all' }}>{apiKey}</code>
+              <CopyButton text={apiKey} label="Copy" />
+            </div>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="btn-primary btn-sm"
+            disabled={apiKeyLoading}
+            onClick={async () => {
+              if (user?.apiKeyPrefix && !window.confirm('This will invalidate your current API key. Continue?')) return;
+              setApiKeyLoading(true);
+              try {
+                const data = await api.generateApiKey();
+                setApiKey(data.api_key);
+                toast.success('API key generated!');
+                refreshUser();
+              } catch (err) {
+                toast.error(err.message);
+              } finally {
+                setApiKeyLoading(false);
+              }
+            }}
+          >
+            {apiKeyLoading ? 'Generating...' : user?.apiKeyPrefix ? 'Regenerate Key' : 'Generate API Key'}
+          </button>
+          {user?.apiKeyPrefix && (
+            <button
+              className="btn-danger btn-sm"
+              onClick={async () => {
+                if (!window.confirm('Revoke your API key? Any integrations using it will stop working.')) return;
+                try {
+                  await api.revokeApiKey();
+                  setApiKey(null);
+                  toast.success('API key revoked');
+                  refreshUser();
+                } catch (err) {
+                  toast.error(err.message);
+                }
+              }}
+            >
+              Revoke Key
+            </button>
           )}
         </div>
       </div>

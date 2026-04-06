@@ -103,6 +103,7 @@ router.get('/me', authenticate, async (req, res) => {
   delete userObj.telegramChatId;
   delete userObj.telegramLinkCode;
   delete userObj.telegramLinkCodeExpiry;
+  delete userObj.apiKeyHash;
   res.json({ user: userObj });
 });
 
@@ -266,6 +267,38 @@ router.get('/my-reports', authenticate, async (req, res) => {
     res.json({ reports: results });
   } catch (err) {
     console.error('[Auth] My reports error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/api-key — Generate or regenerate API key
+router.post('/api-key', authenticate, async (req, res) => {
+  try {
+    const rawKey = crypto.randomBytes(32).toString('hex');
+    const prefix = rawKey.slice(0, 8);
+    const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $set: { apiKeyHash: hash, apiKeyPrefix: prefix },
+    });
+
+    res.json({ api_key: rawKey, prefix });
+  } catch (err) {
+    console.error('[Auth] API key generate error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/auth/api-key — Revoke API key
+router.delete('/api-key', authenticate, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user._id, {
+      $set: { apiKeyHash: null, apiKeyPrefix: null },
+    });
+
+    res.json({ message: 'API key revoked' });
+  } catch (err) {
+    console.error('[Auth] API key revoke error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });

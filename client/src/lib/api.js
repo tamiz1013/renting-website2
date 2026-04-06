@@ -41,6 +41,8 @@ export const api = {
   changePassword: (body) => request('/auth/password', { method: 'PUT', body: JSON.stringify(body) }),
   generateTelegramLink: () => request('/auth/telegram-link', { method: 'POST' }),
   unlinkTelegram: () => request('/auth/telegram-link', { method: 'DELETE' }),
+  generateApiKey: () => request('/auth/api-key', { method: 'POST' }),
+  revokeApiKey: () => request('/auth/api-key', { method: 'DELETE' }),
 
   // Pricing (public)
   getPricing: () => request('/pricing'),

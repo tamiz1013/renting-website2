@@ -24,6 +24,7 @@ import depositRoutes from './routes/deposits.js';
 import pricingRoutes from './routes/pricing.js';
 import adminRoutes from './routes/admin.js';
 import transferRoutes from './routes/transfer.js';
+import v1Routes from './routes/v1.js';
 import { startCleanupWorker, stopCleanupWorker } from './services/cleanup.js';
 import { startTelegramNotifier, stopTelegramNotifier } from './services/telegramNotifier.js';
 import { initBot, bot } from './telegram/bot.js';
@@ -62,6 +63,7 @@ app.use('/api/deposits', depositRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/transfer', transferRoutes);
+app.use('/api/v1', v1Routes);
 
 // 404
 app.use((req, res) => {

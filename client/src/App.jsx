@@ -11,6 +11,7 @@ import DepositPage from './pages/DepositPage.jsx';
 import TransferPage from './pages/TransferPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import TelegramLoginPage from './pages/TelegramLoginPage.jsx';
+import ApiDocsPage from './pages/ApiDocsPage.jsx';
 
 function ProtectedRoute({ children, adminOnly }) {
   const { user, loading } = useAuth();
@@ -46,6 +47,7 @@ export default function App() {
         <Route path="profile" element={<ProfilePage />} />
         <Route path="deposit" element={<DepositPage />} />
         <Route path="transfer" element={<TransferPage />} />
+        <Route path="docs" element={<ApiDocsPage />} />
         <Route
           path="admin/*"
           element={

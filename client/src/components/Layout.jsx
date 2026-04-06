@@ -23,6 +23,9 @@ export default function Layout() {
           <NavLink to="/profile" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
             Profile
           </NavLink>
+          <NavLink to="/docs" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+            API Docs
+          </NavLink>
 
           {user?.role === 'admin' && (
             <>
