@@ -94,7 +94,7 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const server = app.listen(config.port, () => {
+const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`[Server] Running on port ${config.port}`);
   startCleanupWorker();
   initBot();
