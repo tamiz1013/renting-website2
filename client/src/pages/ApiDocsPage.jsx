@@ -505,10 +505,6 @@ const PORT = 3002;
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello, World!' });
-});
-
 async function getEmail(platform) {
   // 1. Request email
   const assignRes = await fetch(\`\${BASE}/short-term/request\`, {
