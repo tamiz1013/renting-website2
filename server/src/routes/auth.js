@@ -1,15 +1,19 @@
 import { Router } from 'express';
-import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
+import { OAuth2Client } from 'google-auth-library';
 import config from '../config/index.js';
 import User from '../models/User.js';
 import EmailInventory from '../models/EmailInventory.js';
 import UsageLog from '../models/UsageLog.js';
 import { authenticate } from '../middleware/auth.js';
-import { validate } from '../middleware/validate.js';
-import { signupSchema, loginSchema, changePasswordSchema } from '../utils/validation.js';
+
+const googleClient = new OAuth2Client(
+  config.googleClientId,
+  config.googleClientSecret,
+  config.googleCallbackUrl
+);
 
 const router = Router();
 
@@ -20,79 +24,52 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts, please try again later' },
 });
 
-// POST /api/auth/signup
-router.post('/signup', authLimiter, validate(signupSchema), async (req, res) => {
-  try {
-    const { name, email, password } = req.validated;
-
-    const exists = await User.findOne({ email });
-    if (exists) {
-      return res.status(409).json({ error: 'Email already registered' });
-    }
-
-    const hashed = await bcrypt.hash(password, 12);
-    const user = await User.create({
-      name,
-      email,
-      password: hashed,
-    });
-
-    const token = jwt.sign({ userId: user._id }, config.jwtSecret, {
-      expiresIn: config.jwtExpiresIn,
-    });
-
-    res.status(201).json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        balance: user.balance,
-        telegram_username: user.telegram_username,
-        telegramLinked: !!user.telegramChatId,
-      },
-    });
-  } catch (err) {
-    console.error('[Auth] Signup error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
+// GET /api/auth/google — redirect user to Google consent screen
+router.get('/google', (req, res) => {
+  const authUrl = googleClient.generateAuthUrl({
+    access_type: 'offline',
+    scope: ['profile', 'email'],
+    prompt: 'select_account',
+  });
+  res.redirect(authUrl);
 });
 
-// POST /api/auth/login
-router.post('/login', authLimiter, validate(loginSchema), async (req, res) => {
+// GET /api/auth/google/callback — Google redirects here after user consents
+router.get('/google/callback', async (req, res) => {
   try {
-    const { email, password } = req.validated;
+    const { code, error } = req.query;
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    if (error || !code) {
+      return res.redirect(`${config.frontendUrl}/login?error=google_denied`);
     }
 
-    const valid = await bcrypt.compare(password, user.password);
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
+    const { tokens } = await googleClient.getToken(code);
+    const ticket = await googleClient.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: config.googleClientId,
+    });
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name } = payload;
+
+    if (!email) {
+      return res.redirect(`${config.frontendUrl}/login?error=no_email`);
+    }
+
+    let user = await User.findOne({ $or: [{ googleId }, { email }] });
+    if (user) {
+      if (!user.googleId) { user.googleId = googleId; await user.save(); }
+    } else {
+      user = await User.create({ name: name || 'Google User', email, googleId });
     }
 
     const token = jwt.sign({ userId: user._id }, config.jwtSecret, {
       expiresIn: config.jwtExpiresIn,
     });
 
-    res.json({
-      token,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        balance: user.balance,
-        telegram_username: user.telegram_username,
-        telegramLinked: !!user.telegramChatId,
-      },
-    });
+    res.redirect(`${config.frontendUrl}/google-callback?token=${token}`);
   } catch (err) {
-    console.error('[Auth] Login error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('[Auth] Google callback error:', err);
+    res.redirect(`${config.frontendUrl}/login?error=google_failed`);
   }
 });
 
@@ -105,27 +82,6 @@ router.get('/me', authenticate, async (req, res) => {
   delete userObj.telegramLinkCodeExpiry;
   delete userObj.apiKeyHash;
   res.json({ user: userObj });
-});
-
-// PUT /api/auth/password
-router.put('/password', authenticate, validate(changePasswordSchema), async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.validated;
-    const user = await User.findById(req.user._id);
-
-    const valid = await bcrypt.compare(currentPassword, user.password);
-    if (!valid) {
-      return res.status(400).json({ error: 'Current password is incorrect' });
-    }
-
-    user.password = await bcrypt.hash(newPassword, 12);
-    await user.save();
-
-    res.json({ message: 'Password updated' });
-  } catch (err) {
-    console.error('[Auth] Password change error:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
 });
 
 // POST /api/auth/telegram-link — Generate a one-time link code for Telegram

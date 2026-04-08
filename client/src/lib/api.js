@@ -33,12 +33,9 @@ async function request(path, options = {}) {
 // Auth
 export const api = {
   // Auth
-  signup: (body) => request('/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
-  login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   telegramLogin: (body) => request('/auth/telegram-login', { method: 'POST', body: JSON.stringify(body) }),
   getMe: () => request('/auth/me'),
   getMyReports: () => request('/auth/my-reports'),
-  changePassword: (body) => request('/auth/password', { method: 'PUT', body: JSON.stringify(body) }),
   generateTelegramLink: () => request('/auth/telegram-link', { method: 'POST' }),
   unlinkTelegram: () => request('/auth/telegram-link', { method: 'DELETE' }),
   generateApiKey: () => request('/auth/api-key', { method: 'POST' }),

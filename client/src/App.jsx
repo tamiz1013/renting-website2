@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Layout from './components/Layout.jsx';
 import LoginPage from './pages/LoginPage.jsx';
-import SignupPage from './pages/SignupPage.jsx';
+import GoogleCallbackPage from './pages/GoogleCallbackPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import LongTermPage from './pages/LongTermPage.jsx';
 import InboxPage from './pages/InboxPage.jsx';
@@ -31,7 +31,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
-      <Route path="/signup" element={user ? <Navigate to="/" /> : <SignupPage />} />
+      <Route path="/google-callback" element={user ? <Navigate to="/" /> : <GoogleCallbackPage />} />
       <Route path="/tglogin" element={user ? <Navigate to="/" /> : <TelegramLoginPage />} />
       <Route
         path="/"

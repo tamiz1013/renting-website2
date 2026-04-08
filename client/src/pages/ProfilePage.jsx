@@ -8,8 +8,6 @@ import { CopyButton } from '../components/CopyButton.jsx';
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
-  const [changingPw, setChangingPw] = useState(false);
-  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '' });
   const [reports, setReports] = useState([]);
   const [loadingReports, setLoadingReports] = useState(true);
   const [linkCode, setLinkCode] = useState(null);
@@ -24,20 +22,6 @@ export default function ProfilePage() {
       .catch(() => {})
       .finally(() => setLoadingReports(false));
   }, []);
-
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
-    setChangingPw(true);
-    try {
-      await api.changePassword(pwForm);
-      toast.success('Password updated');
-      setPwForm({ currentPassword: '', newPassword: '' });
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setChangingPw(false);
-    }
-  };
 
   const activeShortTerm = user?.active_rentals?.filter((r) => r.lock_type === 'short_term').length || 0;
   const activeLongTerm = user?.active_rentals?.filter((r) => r.lock_type === 'long_term').length || 0;
@@ -132,35 +116,6 @@ export default function ProfilePage() {
       </div>
 
       <div className="grid-2 mb-4">
-        {/* Change password */}
-        <div className="card">
-          <h3 className="mb-3">Change Password</h3>
-          <form onSubmit={handleChangePassword}>
-            <div className="form-group">
-              <label>Current Password</label>
-              <input
-                type="password"
-                value={pwForm.currentPassword}
-                onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>New Password</label>
-              <input
-                type="password"
-                value={pwForm.newPassword}
-                onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
-                required
-                minLength={6}
-              />
-            </div>
-            <button className="btn-primary" type="submit" disabled={changingPw}>
-              {changingPw ? 'Updating...' : 'Update Password'}
-            </button>
-          </form>
-        </div>
-
         {/* Telegram Link */}
         <div className="card">
           <h3 className="mb-3">🤖 Telegram</h3>

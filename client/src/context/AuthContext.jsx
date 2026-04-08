@@ -28,18 +28,9 @@ export function AuthProvider({ children }) {
     fetchUser();
   }, [fetchUser]);
 
-  const login = async (credentials) => {
-    const data = await api.login(credentials);
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
-    return data;
-  };
-
-  const signup = async (values) => {
-    const data = await api.signup(values);
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
-    return data;
+  const loginWithToken = async (token) => {
+    localStorage.setItem('token', token);
+    await fetchUser();
   };
 
   const logout = () => {
@@ -50,7 +41,7 @@ export function AuthProvider({ children }) {
   const refreshUser = fetchUser;
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, loginWithToken, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
