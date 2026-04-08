@@ -225,6 +225,8 @@ tr:hover td { background: var(--bg-hover); }
 }
 .auth-box p { color: var(--text-dim); margin-bottom: 24px; }
 
+.login-btn:hover { opacity: 0.85; }
+
 /* Tabs */
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
 .tab {
